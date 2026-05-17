@@ -33,12 +33,12 @@ const navItems = [
       <!-- Logo -->
       <div class="px-5 py-5 border-b border-white/5">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[var(--color-primary-active)] via-[var(--color-primary)] to-[var(--color-primary-hover)] flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-400/10">
+          <div class="w-9 h-9 rounded-xl logo-shimmer flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-400/10">
             B
           </div>
           <div>
-            <h1 class="text-base font-bold text-[var(--color-text-primary)] tracking-wide">Bili-Tools</h1>
-            <p class="text-[10px] text-[var(--color-text-secondary)]">手游自动化工具 v2.0</p>
+            <h1 class="text-base font-bold text-[var(--color-text-primary)] tracking-wide">BiliTools<span class="text-[var(--color-primary)]">+</span></h1>
+            <p class="text-[10px] text-[var(--color-text-secondary)]">B站游戏资源工具 v2.0</p>
           </div>
         </div>
       </div>
@@ -79,7 +79,7 @@ const navItems = [
       <!-- User profile when logged in -->
       <div v-if="app.isLoggedIn" class="px-4 py-3 border-t border-white/5">
         <div class="flex items-center gap-3 p-2 rounded-xl bg-white/5">
-          <img v-if="app.avatar" :src="app.avatar" alt="头像" class="w-10 h-10 rounded-full ring-2 ring-[var(--color-primary)]/30" />
+          <img v-if="app.avatar" :src="app.avatar" alt="头像" referrerpolicy="no-referrer" class="w-10 h-10 rounded-full object-cover ring-2 ring-[var(--color-primary)]/30" />
           <div v-else class="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[#0066cc] flex items-center justify-center text-white font-bold text-sm">
             {{ app.username?.charAt(0)?.toUpperCase() ?? '?' }}
           </div>

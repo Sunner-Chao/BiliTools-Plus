@@ -6,7 +6,7 @@ import { useAppStore } from '@/stores/useAppStore'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { UserCog, QrCode, Smartphone, CheckCircle2, Clock, XCircle, Plus, Trash2, X, RefreshCw, ShieldCheck, Cookie } from 'lucide-vue-next'
 
-interface Account { id: string; username: string; game: string; status: 'active'|'expired'|'error'; last_used: string; cookie_valid: boolean }
+interface Account { id: string; username: string; uid?: string; avatar?: string; game: string; status: 'active'|'expired'|'error'; last_used: string; cookie_valid: boolean }
 type QrStatus = 'idle'|'generating'|'pending'|'scanned'|'confirmed'|'expired'|'error'
 
 const app = useAppStore()
@@ -26,8 +26,8 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
 async function loadAccounts() {
-  const data = await request<Account[]>('/api/accounts')
-  if (data) accounts.value = data
+  const data = await request<{ accounts: Account[] }>('/api/accounts')
+  if (data) accounts.value = data.accounts ?? data.data?.accounts ?? []
 }
 async function deleteAccount(id: string) {
   const ok = await request(`/api/accounts/${id}`, { method: 'DELETE' })
@@ -141,9 +141,9 @@ onUnmounted(() => { stopPolling(); stopCountdown() })
             <QrCode :size="40" class="text-gray-400 mb-2" /> <span class="text-xs text-gray-400">点击生成二维码</span>
           </div>
           <img v-else-if="qrcodeImage" :src="qrcodeImage" alt="登录二维码" class="w-full h-full object-contain p-3" />
-          <div v-if="qrStatus !== 'idle' && qrStatus !== 'generating'"
+          <div v-if="['scanned', 'confirmed', 'expired', 'error'].includes(qrStatus)"
             class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-            <component :is="qrStatusConfig.icon" :size="32" :class="'mb-2 ' + qrStatusConfig.color" />
+            <component :is="qrStatusConfig.icon" :size="32" class="mb-2" :style="{ color: qrStatusConfig.color }" />
             <span class="text-xs font-medium" :style="{ color: qrStatusConfig.color }">{{ qrStatusConfig.label }}</span>
           </div>
         </div>
@@ -185,7 +185,8 @@ onUnmounted(() => { stopPolling(); stopCountdown() })
       </div>
       <div v-for="acc in accounts" :key="acc.id"
         class="group flex items-center gap-4 p-4 rounded-xl glass-card hover:border-[var(--color-primary)]/30 transition-all">
-        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[#0066cc] flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-[var(--color-primary)]/20">
+        <img v-if="acc.avatar" :src="acc.avatar" alt="头像" referrerpolicy="no-referrer" class="w-10 h-10 rounded-full object-cover ring-2 ring-[var(--color-primary)]/20" />
+        <div v-else class="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[#0066cc] flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-[var(--color-primary)]/20">
           {{ acc.username?.charAt(0)?.toUpperCase() ?? '?' }}
         </div>
         <div class="flex-1 min-w-0">

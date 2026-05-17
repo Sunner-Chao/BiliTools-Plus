@@ -8,12 +8,14 @@ import httpx, qrcode
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from jose import JWTError, jwt
 from pydantic import BaseModel
+from urllib.parse import urlparse
 
 from app.core.config import settings
 from app.core.response import (
     ErrorCode, ok, fail, fail_response,
     token_expired_response, auth_required_response,
 )
+from app.services.http_client import create_client
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -25,8 +27,9 @@ BILI_HEADERS = {
 logger = logging.getLogger(__name__)
 
 # ── cookies 持久化路径（复刻 src 目录结构）──────────────────
-COOKIES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "cookies")
-CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config")
+PLUS_ROOT = os.environ.get("BILITOOLS_PLUS_ROOT", os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+COOKIES_DIR = os.path.join(PLUS_ROOT, "cookies")
+CONFIG_DIR = os.path.join(PLUS_ROOT, "config")
 os.makedirs(COOKIES_DIR, exist_ok=True)
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
@@ -52,11 +55,16 @@ _qr_lock = asyncio.Lock()
 _current_user: dict = {}
 
 
+class CookieLoginRequest(BaseModel):
+    cookie: str = ""
+    cookies: str = ""
+
+
 async def _fetch(url: str, params: dict, cookies_str: str = None) -> dict:
     headers = BILI_HEADERS.copy()
     if cookies_str:
         headers["Cookie"] = cookies_str
-    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+    async with create_client(timeout=10.0, follow_redirects=True) as client:
         resp = await client.get(url, params=params, headers=headers)
         return resp.json()
 
@@ -74,7 +82,7 @@ async def _fetch_user_info(cookies_str: str) -> dict:
             data = nav_data.get("data", {})
             user_info["uid"] = str(data.get("mid", ""))
             user_info["username"] = data.get("uname", "")
-            user_info["avatar"] = data.get("face", "")
+            user_info["avatar"] = _normalize_url(data.get("face", ""))
             user_info["vip_status"] = data.get("vipStatus", 0)
             user_info["vip_type"] = data.get("vipType", 0)
             user_info["level"] = data.get("level_info", {}).get("current_level", 0)
@@ -105,6 +113,125 @@ async def _fetch_user_info(cookies_str: str) -> dict:
     except Exception as e:
         logger.warning(f"[Auth] 获取用户信息失败: {e}")
     return user_info
+
+
+def _normalize_url(url: str) -> str:
+    if not url:
+        return ""
+    if url.startswith("//"):
+        return f"https:{url}"
+    return url
+
+
+def _extract_cookie_from_login_url(login_url: str) -> str:
+    if not login_url:
+        return ""
+    query: dict[str, str] = {}
+    for part in urlparse(login_url).query.split("&"):
+        name, _, value = part.partition("=")
+        if name and value:
+            query[name] = value
+    names = [
+        "SESSDATA",
+        "bili_jct",
+        "DedeUserID",
+        "DedeUserID__ckMd5",
+        "sid",
+        "buvid3",
+        "b_nut",
+    ]
+    parts = [f"{name}={query[name]}" for name in names if query.get(name)]
+    return "; ".join(parts)
+
+
+def _cookies_from_login_response(response: httpx.Response, payload: dict) -> str:
+    parts: list[str] = []
+    for header in response.headers.get_list("set-cookie"):
+        part = header.split(";", 1)[0].strip()
+        if "=" in part:
+            parts.append(part)
+    if parts:
+        return "; ".join(parts)
+
+    cookies = payload.get("data", {}).get("cookie_info", {}).get("cookies", [])
+    parts = [f"{item['name']}={item['value']}" for item in cookies if item.get("name") and item.get("value")]
+    if parts:
+        return "; ".join(parts)
+
+    parts = [f"{name}={value}" for name, value in response.cookies.items()]
+    if parts:
+        return "; ".join(parts)
+
+    return _extract_cookie_from_login_url(str(payload.get("data", {}).get("url", "")))
+
+
+def _create_access_token(username: str, uid: str = "") -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    return jwt.encode(
+        {"sub": username or "bili_user", "uid": uid or "", "exp": expire, "iat": datetime.now(timezone.utc)},
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+async def _save_login_state(cookies_str: str, user_info: dict) -> dict:
+    global _current_user
+    uid = str(user_info.get("uid") or "")
+    username = user_info.get("username") or uid or "B站用户"
+
+    _save_cookies_to_file(cookies_str, uid)
+    _save_user_info_to_file(user_info)
+
+    _current_user = {
+        "is_login": True,
+        "username": username,
+        "uid": uid,
+        "cookies": cookies_str,
+        "room_id": user_info.get("room_id", ""),
+        "avatar": user_info.get("avatar", ""),
+        "level": user_info.get("level", 0),
+        "bili_jct": user_info.get("bili_jct", ""),
+        "buvid3": user_info.get("buvid3", ""),
+    }
+
+    try:
+        from app.models import Account, async_session
+        from sqlalchemy import select
+        async with async_session() as db:
+            result = await db.execute(select(Account).where(Account.uid == uid))
+            acc = result.scalar_one_or_none()
+            if acc:
+                acc.username = username
+                acc.cookies = cookies_str
+                acc.is_login = True
+                acc.room_id = user_info.get("room_id", "")
+            else:
+                acc = Account(
+                    username=username,
+                    uid=uid,
+                    cookies=cookies_str,
+                    room_id=user_info.get("room_id", ""),
+                    game="原神",
+                    is_login=True,
+                )
+                db.add(acc)
+            await db.commit()
+    except Exception as e:
+        logger.warning(f"[Auth] DB 登录态保存失败: {e}")
+
+    token = _create_access_token(username, uid)
+    return {
+        "is_login": True,
+        "username": username,
+        "uid": uid,
+        "cookies": cookies_str,
+        "room_id": user_info.get("room_id", ""),
+        "avatar": user_info.get("avatar", ""),
+        "level": user_info.get("level", 0),
+        "bili_jct": user_info.get("bili_jct", ""),
+        "access_token": token,
+        "expires_in": settings.access_token_expire_minutes * 60,
+    }
 
 
 def _save_cookies_to_file(cookies_str: str, uid: str = ""):
@@ -200,18 +327,22 @@ async def _poll_qrcode(qrcode_key: str) -> dict:
     poll_url = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll"
     params = {"qrcode_key": qrcode_key, "source": "main-fe-header", "_": str(int(time.time() * 1000))}
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            poll_data = (await client.get(poll_url, params=params, headers=BILI_HEADERS)).json()
+        async with create_client(timeout=30.0) as client:
+            response = await client.get(poll_url, params=params, headers=BILI_HEADERS)
+            poll_data = response.json()
     except Exception as e:
         logger.error(f"[QR] poll failed: {e}")
         return {"code": 503, "status": "failed", "message": "网络请求失败"}
     bili_code = poll_data.get("data", {}).get("code", -1)
     if bili_code == 0:
         session.status = "confirmed"
-        cookies_list = poll_data.get("data", {}).get("cookie_info", {}).get("cookies", [])
-        session.cookies = "; ".join(f"{c['name']}={c['value']}" for c in cookies_list)
-        session.username = poll_data.get("data", {}).get("uname", "")
-        session.uid = str(poll_data.get("data", {}).get("uid", ""))
+        session.cookies = _cookies_from_login_response(response, poll_data)
+        user_info = await _fetch_user_info(session.cookies) if session.cookies else {}
+        session.username = user_info.get("username") or poll_data.get("data", {}).get("uname", "")
+        session.uid = str(user_info.get("uid") or poll_data.get("data", {}).get("uid", ""))
+        if not session.cookies:
+            session.status = "failed"
+            return {"code": 3002, "status": "failed", "message": "登录成功但未获得 Cookie，请重试"}
         return {"code": 0, "status": "confirmed", "username": session.username, "uid": session.uid, "cookies": session.cookies}
     elif bili_code == 86101: session.status = "pending"; return {"code": 86101, "status": "pending", "message": "等待扫码"}
     elif bili_code in (86090, 86091): session.status = "scanned"; return {"code": bili_code, "status": "scanned", "message": "扫码成功，请在手机端确认"}
@@ -242,85 +373,36 @@ async def poll_qrcode(qrcode_key: str = Query(...)):
 @router.post("/qrcode/confirm")
 async def confirm_qrcode(qrcode_key: str = Query(...)):
     """扫码确认 — 自动获取用户完整信息 + 保存 cookies 到文件 + DB 持久化"""
-    from app.core.config import settings
-    global _current_user
-
     async with _qr_lock:
         session = _qr_sessions.get(qrcode_key)
     if not session or session.status != "confirmed":
         raise HTTPException(status_code=400, detail="扫码未确认或已过期")
+    if not session.cookies:
+        return fail(ErrorCode.BILI_COOKIE_INVALID, msg="登录成功但未获得 Cookie，请重新扫码")
 
-    # ── 1. 自动获取用户完整信息（复刻 src 的 try_entry_login 后半段）──
-    user_info = {}
-    if session.cookies:
-        user_info = await _fetch_user_info(session.cookies)
-        # 用获取到的 uid/username 覆盖 session 中可能为空的值
-        session.uid = user_info.get("uid") or session.uid
-        session.username = user_info.get("username") or session.username
+    user_info = await _fetch_user_info(session.cookies)
+    if not user_info.get("uid"):
+        return fail(ErrorCode.BILI_COOKIE_INVALID, msg="Cookie 验证失败，请重新扫码")
+    payload = await _save_login_state(session.cookies, user_info)
 
-    # ── 2. 保存 cookies 到文件（复刻 src 的 cookies 目录）──
-    _save_cookies_to_file(session.cookies or "", session.uid or "")
-    _save_user_info_to_file(user_info)
+    logger.info(f"[Auth] 登录成功: {payload['username']} (uid={payload['uid']}, room_id={payload.get('room_id', '')})")
 
-    # ── 3. 生成 JWT token ──
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    token = jwt.encode(
-        {"sub": session.username or "bili_user", "uid": session.uid or "", "exp": expire, "iat": datetime.now(timezone.utc)},
-        settings.jwt_secret, algorithm=settings.jwt_algorithm
-    )
+    return ok(data=payload, msg="登录成功")
 
-    # ── 4. 更新全局登录状态 ──
-    _current_user = {
-        "is_login": True,
-        "username": session.username,
-        "uid": session.uid,
-        "cookies": session.cookies,
-        "room_id": user_info.get("room_id", ""),
-        "avatar": user_info.get("avatar", ""),
-        "level": user_info.get("level", 0),
-        "bili_jct": user_info.get("bili_jct", ""),
-        "buvid3": user_info.get("buvid3", ""),
-    }
 
-    # ── 5. DB 持久化 ──
-    try:
-        from app.models import Account, async_session
-        from sqlalchemy import select
-        async with async_session() as db:
-            result = await db.execute(select(Account).where(Account.uid == session.uid))
-            acc = result.scalar_one_or_none()
-            if acc:
-                acc.cookies = session.cookies or ""
-                acc.is_login = True
-                acc.room_id = user_info.get("room_id", "")
-            else:
-                acc = Account(
-                    username=session.username or session.uid or "unknown",
-                    uid=session.uid or "",
-                    cookies=session.cookies or "",
-                    room_id=user_info.get("room_id", ""),
-                    game="原神",
-                    is_login=True,
-                )
-                db.add(acc)
-            await db.commit()
-    except Exception as e:
-        logger.warning(f"[QR] auto-save failed: {e}")
+@router.post("/cookie")
+async def login_by_cookie(req: CookieLoginRequest):
+    cookies_str = (req.cookie or req.cookies or "").strip()
+    if not cookies_str:
+        return fail(ErrorCode.PARAM_INVALID, msg="请粘贴 B 站 Cookie")
 
-    logger.info(f"[Auth] 登录成功: {session.username} (uid={session.uid}, room_id={user_info.get('room_id', '')})")
+    user_info = await _fetch_user_info(cookies_str)
+    if not user_info.get("uid"):
+        return fail(ErrorCode.BILI_COOKIE_INVALID, msg="Cookie 无效或已过期，请重新获取")
 
-    return ok(data={
-        "is_login": True,
-        "username": session.username,
-        "uid": session.uid,
-        "cookies": session.cookies,
-        "room_id": user_info.get("room_id", ""),
-        "avatar": user_info.get("avatar", ""),
-        "level": user_info.get("level", 0),
-        "bili_jct": user_info.get("bili_jct", ""),
-        "access_token": token,
-        "expires_in": settings.access_token_expire_minutes * 60,
-    }, msg="登录成功")
+    payload = await _save_login_state(cookies_str, user_info)
+    logger.info(f"[Auth] Cookie 登录成功: {payload['username']} (uid={payload['uid']})")
+    return ok(data=payload, msg="登录成功")
 
 
 @router.get("/user/info")

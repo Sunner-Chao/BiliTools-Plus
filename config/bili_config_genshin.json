@@ -1,100 +1,225 @@
 {
     "TASKS": [
-        {   
-            "限定50原石": {
-                "id": "6ERA4wloghvkx300",
-                "description": "限定50原石"
+        {
+            "投稿3播放300(投稿1：摩拉*20000)": {
+                "id": "6ERAcwloghvboh00",
+                "description": "投稿1：摩拉*20000",
+                "awardName": "投稿1：摩拉*20000",
+                "taskName": "投稿3播放300",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvboh00"
             },
-            "累计1天奖励(200原石)": {
-                "id": "18ERA1wloghvole00",
-                "description": "累计1天奖励"
+            "投稿4播放400(投稿2：原石*50)": {
+                "id": "6ERAcwloghvnqq00",
+                "description": "投稿2：原石*50",
+                "awardName": "投稿2：原石*50",
+                "taskName": "投稿4播放400",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvnqq00"
             },
-            "累计5天奖励(600原石)": {
-                "id": "18ERA1wloghvol100",
-                "description": "累计5天奖励"
+            "投稿5播放500(投稿3：相遇之缘*1)": {
+                "id": "6ERAcwloghvc4k00",
+                "description": "投稿3：相遇之缘*1",
+                "awardName": "投稿3：相遇之缘*1",
+                "taskName": "投稿5播放500",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvc4k00"
             },
-            "累计10天奖励(1000原石)": {
-                "id": "18ERA1wloghvokv00",
-                "description": "累计10天奖励"
+            "累计播放15w(投稿4：原石*1000)": {
+                "id": "6ERAcwloghvvqm00",
+                "description": "投稿4：原石*1000",
+                "awardName": "投稿4：原石*1000",
+                "taskName": "累计播放15w",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvvqm00"
             },
-            "累计20天奖励(1000原石)": {
-                "id": "18ERA1wloghvog100",
-                "description": "累计20天奖励"
+            "累计播放70w(投稿5：相遇之缘*10)": {
+                "id": "6ERAcwloghvb0p00",
+                "description": "投稿5：相遇之缘*10",
+                "awardName": "投稿5：相遇之缘*10",
+                "taskName": "累计播放70w",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvb0p00"
             },
-            "累计30天奖励(1000原石)": {
-                "id": "18ERA1wloghvohg00",
-                "description": "累计30天奖励"
+            "分区开播满60分钟且直播间发送弹幕2人(原石*50)": {
+                "id": "6ERAcwloghvvll00",
+                "description": "原石*50",
+                "awardName": "原石*50",
+                "taskName": "分区开播满60分钟且直播间发送弹幕2人",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvvll00"
             },
-            "累计40天奖励(1000原石)": {
-                "id": "18ERA1wloghvo1100",
-                "description": "累计40天奖励"
+            "当日开播满60分钟(精锻用魔矿*5)": {
+                "id": "6ERAcwloghvb1w00",
+                "description": "精锻用魔矿*5",
+                "awardName": "精锻用魔矿*5",
+                "taskName": "当日开播满60分钟",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvb1w00"
             },
-
-            "看播1天奖励(50原石)": {
-                "id": "18ERA1wloghvomv00",
-                "description": "看播1天奖励"
+            "当日直播间送“牛哇牛哇”满2人(大英雄的经验*2)": {
+                "id": "6ERAcwloghvvrg00",
+                "description": "大英雄的经验*2",
+                "awardName": "大英雄的经验*2",
+                "taskName": "当日直播间送“牛哇牛哇”满2人",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvvrg00"
             },
-            "看播5天奖励(50原石)": {
-                "id": "18ERA1wloghvo1a00",
-                "description": "看播5天奖励"
+            "当日直播间弹幕数满6条(冒险家的经验*6)": {
+                "id": "6ERAcwloghvvfb00",
+                "description": "冒险家的经验*6",
+                "awardName": "冒险家的经验*6",
+                "taskName": "当日直播间弹幕数满6条",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvvfb00"
             },
-            "看播10天奖励(100原石)": {
-                "id": "18ERA1wloghvobg00",
-                "description": "看播10天奖励"
+            "当日直播间至少有1名用户观看满10分钟(摩拉*11111)": {
+                "id": "6ERAcwloghvb2a00",
+                "description": "摩拉*11111",
+                "awardName": "摩拉*11111",
+                "taskName": "当日直播间至少有1名用户观看满10分钟",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=6ERAcwloghvb2a00"
             },
-            "看播20天奖励(100原石)": {
-                "id": "18ERA1wloghvone00",
-                "description": "看播20天奖励"
+            "直播里程碑-累计1天(原石*200)": {
+                "id": "18ERA2wloghvp4p00",
+                "description": "原石*200",
+                "awardName": "原石*200",
+                "alias": "累计1天",
+                "taskName": "直播里程碑",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvp4p00"
             },
-            "看播30天奖励(200原石)": {
-                "id": "18ERA1wloghvo1m00",
-                "description": "看播30天奖励"
+            "直播里程碑-累计5天(原石*600)": {
+                "id": "18ERA2wloghvawa00",
+                "description": "原石*600",
+                "awardName": "原石*600",
+                "alias": "累计5天",
+                "taskName": "直播里程碑",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvawa00"
             },
-            "看播40天奖励(200原石)": {
-                "id": "18ERA1wloghvov900",
-                "description": "看播40天奖励"
+            "直播里程碑-累计10天(原石*1000)": {
+                "id": "18ERA2wloghvpm600",
+                "description": "原石*1000",
+                "awardName": "原石*1000",
+                "alias": "累计10天",
+                "taskName": "直播里程碑",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvpm600"
             },
-
-
-            "投稿稿件数量3-累计播放300(摩拉*20000)": {
-                "id": "6ERA4wloghvzho00",
-                "description": "投稿稿件数量3-累计播放300(摩拉*20000)"
+            "直播里程碑-累计20天(原石*1000)": {
+                "id": "18ERA2wloghvt2800",
+                "description": "原石*1000",
+                "awardName": "原石*1000",
+                "alias": "累计20天",
+                "taskName": "直播里程碑",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvt2800"
             },
-            "投稿稿件数量4-累计播放400(原石*50)": {
-                "id": "6ERA4wloghvlnn00",
-                "description": "投稿稿件数量4-累计播放400(原石*50)"
+            "直播里程碑-累计30天(原石*1000)": {
+                "id": "18ERA2wloghvtjw00",
+                "description": "原石*1000",
+                "awardName": "原石*1000",
+                "alias": "累计30天",
+                "taskName": "直播里程碑",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvtjw00"
             },
-            "投稿稿件数量5-累计播放500(相遇之缘*1)": {
-                "id": "6ERA4wloghvlb800",
-                "description": "投稿稿件数量5-累计播放500(相遇之缘*1)"
+            "直播里程碑-累计40天(原石*1000)": {
+                "id": "18ERA2wloghvtyg00",
+                "description": "原石*1000",
+                "awardName": "原石*1000",
+                "alias": "累计40天",
+                "taskName": "直播里程碑",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvtyg00"
             },
-            "投稿-累计播放15万(原石*1000)": {
-                "id": "6ERA4wloghvzfx00",
-                "description": "投稿-累计播放15W(原石*1000)"
+            "看播里程碑任务-累计1天(原石*50)": {
+                "id": "18ERA2wloghvtuf00",
+                "description": "原石*50",
+                "awardName": "原石*50",
+                "alias": "累计1天",
+                "taskName": "看播里程碑任务",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvtuf00"
             },
-            "投稿-累计播放70万(相遇之缘*10)": {
-                "id": "6ERA4wloghvzbw00",
-                "description": "投稿-累计播放70W(相遇之缘*10)"
+            "看播里程碑任务-累计5天(原石*50)": {
+                "id": "18ERA2wloghvtnx00",
+                "description": "原石*50",
+                "awardName": "原石*50",
+                "alias": "累计5天",
+                "taskName": "看播里程碑任务",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvtnx00"
             },
-            "每日奖励-开播满60分钟(锻造用魔矿*5)": {
-                "id": "6ERA4wloghvk5600",
-                "description": "锻造用魔矿*5"
+            "看播里程碑任务-累计10天(原石*100)": {
+                "id": "18ERA2wloghvtof00",
+                "description": "原石*100",
+                "awardName": "原石*100",
+                "alias": "累计10天",
+                "taskName": "看播里程碑任务",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvtof00"
             },
-            "每日奖励-送'牛蛙'大于2人(大英雄的经验*2)": {
-                "id": "6ERA4wloghvk4k00",
-                "description": "大英雄的经验*2"
+            "看播里程碑任务-累计20天(原石*100)": {
+                "id": "18ERA2wloghvp1f00",
+                "description": "原石*100",
+                "awardName": "原石*100",
+                "alias": "累计20天",
+                "taskName": "看播里程碑任务",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvp1f00"
             },
-            "每日奖励-弹幕大于6条(冒险家的经验*6)": {
-                "id": "6ERA4wloghvk6v00",
-                "description": "冒险家的经验*6"
+            "看播里程碑任务-累计30天(原石*200)": {
+                "id": "18ERA2wloghvpxa00",
+                "description": "原石*200",
+                "awardName": "原石*200",
+                "alias": "累计30天",
+                "taskName": "看播里程碑任务",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvpxa00"
             },
-            "每日奖励-有1人看满10分钟(摩拉*11111)": {
-                "id": "6ERA4wloghvk2600",
-                "description": "摩拉*11111"
+            "看播里程碑任务-累计40天(原石*200)": {
+                "id": "18ERA2wloghvt1000",
+                "description": "原石*200",
+                "awardName": "原石*200",
+                "alias": "累计40天",
+                "taskName": "看播里程碑任务",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvt1000"
+            },
+            "看播里程碑1-累计1天(原石*50)": {
+                "id": "18ERA2wloghvtuf00",
+                "description": "原石*50",
+                "awardName": "原石*50",
+                "alias": "累计1天",
+                "taskName": "看播里程碑1",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvtuf00"
+            },
+            "看播里程碑1-累计5天(原石*50)": {
+                "id": "18ERA2wloghvtnx00",
+                "description": "原石*50",
+                "awardName": "原石*50",
+                "alias": "累计5天",
+                "taskName": "看播里程碑1",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvtnx00"
+            },
+            "看播里程碑1-累计10天(原石*100)": {
+                "id": "18ERA2wloghvtof00",
+                "description": "原石*100",
+                "awardName": "原石*100",
+                "alias": "累计10天",
+                "taskName": "看播里程碑1",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvtof00"
+            },
+            "看播里程碑1-累计20天(原石*100)": {
+                "id": "18ERA2wloghvp1f00",
+                "description": "原石*100",
+                "awardName": "原石*100",
+                "alias": "累计20天",
+                "taskName": "看播里程碑1",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvp1f00"
+            },
+            "看播里程碑1-累计30天(原石*200)": {
+                "id": "18ERA2wloghvpxa00",
+                "description": "原石*200",
+                "awardName": "原石*200",
+                "alias": "累计30天",
+                "taskName": "看播里程碑1",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvpxa00"
+            },
+            "看播里程碑1-累计40天(原石*200)": {
+                "id": "18ERA2wloghvt1000",
+                "description": "原石*200",
+                "awardName": "原石*200",
+                "alias": "累计40天",
+                "taskName": "看播里程碑1",
+                "url": "https://www.bilibili.com/blackboard/era/award-exchange.html?task_id=18ERA2wloghvt1000"
             }
         }
     ],
-    "area_name":"原神",
-    "live_task_ids":"6ERA4wloghvk5p00",
-    "area_v2":321
+    "area_name": "原神",
+    "live_task_ids": "6ERAcwloghvb1f00",
+    "submit_task_ids": "",
+    "area_v2": 321,
+    "source_url": "https://www.bilibili.com/blackboard/era/n2drQa9NUK5Xruku.html?spm_id_from=333.337.0.0"
 }

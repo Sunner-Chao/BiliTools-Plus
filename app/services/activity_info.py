@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -11,9 +12,10 @@ from typing import Any
 import httpx
 
 from app.services.config_loader import BILI_HEADERS, config_manager
+from app.services.http_client import create_client
 from app.services.snipe_engine import load_cookie_from_file
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("BILITOOLS_PLUS_ROOT", Path(__file__).resolve().parents[2])).resolve()
 CONFIG_DIR = ROOT / "config"
 
 
@@ -57,7 +59,7 @@ async def fetch_activity_overview(game: str, source_url: str = "") -> dict[str, 
     if cookies and config and config.live_task_id:
         params = {"task_ids": config.live_task_id, "web_location": 888.81821, "csrf": csrf}
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with create_client(timeout=10.0) as client:
                 data = (await client.get("https://api.bilibili.com/x/task/totalv2", params=params, headers=headers)).json()
             if data.get("code") == 0:
                 items = data.get("data", {}).get("list", []) or []
@@ -80,7 +82,7 @@ async def fetch_submit_info(mid: str, cookies: str, ps: int = 20) -> dict[str, A
     }
     params = {"vmid": mid, "ps": ps}
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with create_client(timeout=10.0) as client:
             data = (await client.get("https://app.bilibili.com/x/v2/space/archive/cursor", params=params, headers=headers)).json()
         if data.get("code") != 0:
             return {"submit_error": data.get("message", "获取投稿信息失败")}
@@ -99,7 +101,7 @@ async def fetch_activity_page_info(url: str) -> dict[str, Any]:
     if not url:
         return {}
     try:
-        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+        async with create_client(timeout=20.0, follow_redirects=True) as client:
             html = (await client.get(url, headers=BILI_HEADERS)).text
     except Exception as exc:
         return {"error": str(exc)}

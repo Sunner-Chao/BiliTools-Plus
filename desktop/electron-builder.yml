@@ -1,0 +1,40 @@
+appId: com.bilitools.plus
+productName: BiliTools-Plus
+directories:
+  buildResources: build
+files:
+  - dist/**/*
+  - '!node_modules/**/*'
+  - '!dist/win-unpacked/**/*'
+  - '!dist/linux-unpacked/**/*'
+  - '!dist/__appImage-x64/**/*'
+  - '!dist/*.AppImage'
+  - '!dist/*.zip'
+  - '!dist/win-unpacked'
+  - '!dist/linux-unpacked'
+  - '!dist/__appImage-x64'
+extraResources:
+  - from: "build/backend"
+    to: "backend"
+    filter:
+      - "**/*"
+asar: true
+win:
+  signAndEditExecutable: false
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: zip
+      arch: [x64]
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

@@ -12,6 +12,7 @@ import httpx
 
 from app.services.websocket_manager import ws_manager
 from app.services.snipe_engine import snipe_engine
+from app.services.http_client import create_client
 from app.core.logger import setup_logging
 
 logger = setup_logging()
@@ -67,7 +68,7 @@ class StockMonitor:
         try:
             # 模拟 B站 商品页 API
             # 生产环境替换为真实抓取逻辑
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with create_client(timeout=5.0) as client:
                 # resp = await client.get(f"https://api.bilibili.com/xxx/{product_id}")
                 # data = resp.json()
                 # if data.get("code") != 0:

@@ -10,9 +10,19 @@ const STORAGE_KEY = 'bilibili_auth'
 function loadFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const saved = JSON.parse(raw)
+      if (typeof saved.avatar === 'string' && saved.avatar.startsWith('//')) {
+        saved.avatar = `https:${saved.avatar}`
+      }
+      return saved
+    }
   } catch { /* ignore */ }
   return null
+}
+
+function normalizeUrl(url = '') {
+  return url.startsWith('//') ? `https:${url}` : url
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -70,7 +80,7 @@ export const useAppStore = defineStore('app', () => {
     cookies.value = payload.cookies || ''
     uid.value = payload.uid || ''
     room_id.value = payload.room_id || ''
-    avatar.value = payload.avatar || ''
+    avatar.value = normalizeUrl(payload.avatar || '')
     level.value = payload.level || 0
     bili_jct.value = payload.bili_jct || ''
     isLoggedIn.value = true

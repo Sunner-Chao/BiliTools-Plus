@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
 import { useToast } from '@/composables/useToast'
 
@@ -83,12 +83,12 @@ function useDeferredToast() {
   return { show, cancel }
 }
 
-export function useWebSocket(url: string, handlers: WsHandlers = {}) {
+export function useWebSocket(url: MaybeRefOrGetter<string>, handlers: WsHandlers = {}) {
   const app = useAppStore()
   const toast = useToast()
   const status = ref<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting')
   let ws: WebSocket | null = null
-  let currentUrl = url
+  let currentUrl = toValue(url)
   let reconnectAttempts = 0
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let intentionalClose = false
@@ -115,7 +115,7 @@ export function useWebSocket(url: string, handlers: WsHandlers = {}) {
           deferredToast.show(() => toast.info('正在切换线路…'))
           disconnect()
           intentionalClose = false
-          currentUrl = `${url.split('?')[0]}?token=${tokenEvt.new_token}`
+          currentUrl = `${currentUrl.split('?')[0]}?token=${tokenEvt.new_token}`
           reconnectAttempts = 0
           connect()
           deferredToast.cancel()
@@ -149,7 +149,7 @@ export function useWebSocket(url: string, handlers: WsHandlers = {}) {
     status.value = 'connecting'
 
     try {
-      ws = new WebSocket(url)
+      ws = new WebSocket(currentUrl)
     } catch {
       status.value = 'error'
       app.globalWsStatus = 'error'
@@ -243,6 +243,18 @@ export function useWebSocket(url: string, handlers: WsHandlers = {}) {
   }
 
   connect()
+
+  watch(
+    () => toValue(url),
+    (nextUrl) => {
+      if (!nextUrl || nextUrl === currentUrl) return
+      disconnect()
+      intentionalClose = false
+      currentUrl = nextUrl
+      reconnectAttempts = 0
+      connect()
+    },
+  )
 
   // 组件卸载时自动断开
   onUnmounted(() => {

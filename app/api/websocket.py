@@ -4,6 +4,8 @@
 """
 import json
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from jose import JWTError, jwt
+from app.core.config import settings
 from app.services.websocket_manager import ws_manager
 from app.core.logger import setup_logging
 
@@ -24,7 +26,15 @@ async def _validate_ws_token(token: str | None) -> str | None:
     """验证 WS token，返回 username 或 None"""
     if not token:
         return None
-    return _authenticated_tokens.get(token)
+    registered = _authenticated_tokens.get(token)
+    if registered:
+        return registered
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    except JWTError as exc:
+        logger.warning(f"[WS] JWT decode failed: {exc}")
+        return None
+    return payload.get("sub") or payload.get("uid")
 
 
 async def _handle_ws_messages(websocket: WebSocket, username: str):

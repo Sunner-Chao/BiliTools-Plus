@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-PLUS_ROOT = Path(__file__).resolve().parents[2]
+PLUS_ROOT = Path(os.environ.get("BILITOOLS_PLUS_ROOT", Path(__file__).resolve().parents[2])).resolve()
 SETTINGS_PATH = PLUS_ROOT / "config" / "app_settings.json"
 
 DEFAULT_SETTINGS: dict[str, Any] = {

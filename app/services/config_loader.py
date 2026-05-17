@@ -8,17 +8,20 @@
     ],
     "area_name": "原神",
     "live_task_ids": "6ERA4wloghvk5p00",
+    "submit_task_ids": "6ERA4wloghvtv000",
     "area_v2": 321
 }
 """
-import json, logging, re
+import json, logging, os, re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
+from app.services.http_client import create_client
 
 logger = logging.getLogger(__name__)
-CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+PLUS_ROOT = Path(os.environ.get("BILITOOLS_PLUS_ROOT", Path(__file__).resolve().parents[2])).resolve()
+CONFIG_DIR = PLUS_ROOT / "config"
 
 BILI_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
@@ -33,6 +36,7 @@ class GameConfig:
         self.game_key = game_key
         self.area_name: str = data.get("area_name", game_key)
         self.live_task_id: str = data.get("live_task_ids", "")
+        self.submit_task_id: str = data.get("submit_task_ids", "")
         self.area_v2: int = data.get("area_v2", 0)
         self.tasks: List[dict] = []
         
@@ -94,13 +98,23 @@ class ConfigManager:
                 "name": config.area_name,
                 "task_count": len(config.tasks),
                 "area_v2": config.area_v2,
+                "source_url": self._raw_config(key).get("source_url", ""),
             })
         return games
+
+    def _raw_config(self, game_key: str) -> dict:
+        filepath = CONFIG_DIR / self.GAME_FILES.get(game_key, "")
+        if filepath.exists():
+            try:
+                return json.loads(filepath.read_text(encoding="utf-8"))
+            except Exception:
+                return {}
+        return {}
 
     async def refresh_from_url(self, game_key: str, url: str) -> dict:
         if game_key not in self.GAME_FILES:
             return {"success": False, "error": f"未知游戏: {game_key}"}
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        async with create_client(timeout=30.0, follow_redirects=True) as client:
             resp = await client.get(url, headers=BILI_HEADERS)
             resp.raise_for_status()
         old = self.get_config(game_key)
@@ -108,6 +122,7 @@ class ConfigManager:
             "area_name": old.area_name if old else game_key,
             "area_v2": old.area_v2 if old else 0,
             "live_task_ids": old.live_task_id if old else "",
+            "submit_task_ids": old.submit_task_id if old else "",
         }
         data = _parse_blackboard_page(resp.text, old_data)
         data["source_url"] = url
@@ -127,6 +142,7 @@ def _parse_blackboard_page(html: str, fallback: dict[str, Any]) -> dict[str, Any
     _collect_task_items(page_data, task_items)
     tasks: dict[str, dict[str, Any]] = {}
     live_task_id = fallback.get("live_task_ids", "")
+    submit_task_id = fallback.get("submit_task_ids", "")
     for item in task_items:
         task_name = str(item.get("taskName") or item.get("name") or "").strip()
         parent_task_id = str(item.get("taskId") or "").strip()
@@ -171,6 +187,7 @@ def _parse_blackboard_page(html: str, fallback: dict[str, Any]) -> dict[str, Any
         "TASKS": [tasks] if tasks else [],
         "area_name": fallback.get("area_name", ""),
         "live_task_ids": live_task_id,
+        "submit_task_ids": submit_task_id,
         "area_v2": fallback.get("area_v2", 0),
     } if tasks else fallback
 

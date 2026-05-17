@@ -63,6 +63,8 @@ const robMode = ref('auto')
 const activeTaskId = ref('')
 const overview = ref<any>({})
 const overviewLoading = ref(false)
+const sourceUrl = ref('https://www.bilibili.com/blackboard/era/n2drQa9NUK5Xruku.html?spm_id_from=333.337.0.0')
+const refreshConfigLoading = ref(false)
 
 // ── Snipe engine tasks ──
 const snipeTasks = ref<any[]>([])
@@ -93,7 +95,8 @@ const loadTasks = async () => {
 const loadOverview = async () => {
   overviewLoading.value = true
   try {
-    const res = await api.get<any>(`/api/tasks/overview?game=${app.currentGame}`)
+    const params = new URLSearchParams({ game: app.currentGame, source_url: sourceUrl.value })
+    const res = await api.get<any>(`/api/tasks/overview?${params.toString()}`)
     overview.value = res || {}
     // Auto-fill countdown from activity end_time
     if (overview.value?.activity?.end_time) {
@@ -102,6 +105,30 @@ const loadOverview = async () => {
     }
   } catch { /* ignore */ }
   overviewLoading.value = false
+}
+
+const refreshConfigFromUrl = async () => {
+  if (!sourceUrl.value.trim()) {
+    toast.warning('请先填写活动网页 URL')
+    return
+  }
+  refreshConfigLoading.value = true
+  try {
+    const res = await api.post<any>('/api/tasks/refresh', {
+      game: app.currentGame,
+      url: sourceUrl.value.trim(),
+    })
+    if (res?.success) {
+      toast.success(`已从网页抓取 ${res.task_count ?? 0} 个资源任务`)
+      await loadTasks()
+      await loadOverview()
+      taskStore.clearSelection()
+    } else {
+      toast.error(res?.error || res?.msg || '网页抓取失败')
+    }
+  } finally {
+    refreshConfigLoading.value = false
+  }
 }
 
 const formatSeconds = (seconds: number) => {
@@ -419,6 +446,15 @@ const refreshAll = () => {
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">任务配置</h3>
         <div class="space-y-4">
           <div>
+            <label class="text-[11px] text-[var(--color-text-disabled)] mb-1.5 block">活动网页 URL</label>
+            <div class="flex gap-2">
+              <input v-model="sourceUrl" type="url" class="input-field flex-1 min-w-0 text-xs" placeholder="https://www.bilibili.com/blackboard/era/..." />
+              <button @click="refreshConfigFromUrl" :disabled="refreshConfigLoading" class="btn-ghost px-3 flex items-center justify-center" title="从网页抓取资源配置">
+                <RefreshCw :size="14" :class="refreshConfigLoading && 'animate-spin'" />
+              </button>
+            </div>
+          </div>
+          <div>
             <label class="text-[11px] text-[var(--color-text-disabled)] mb-1.5 block">游戏配置</label>
             <select v-model="app.currentGame" @change="() => { loadTasks(); loadOverview() }" class="input-field w-full text-sm">
               <option v-for="game in app.games" :key="game.key" :value="game.key">{{ game.label }}</option>
@@ -479,7 +515,7 @@ const refreshAll = () => {
                 ? 'border-[var(--color-error)]/20 bg-[var(--color-error)]/5'
                 : taskStore.selectedTaskIds.has(task.id)
                 ? 'border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5 cursor-pointer'
-                : 'border-white/5 bg-[var(--color-bg-base)]/50 hover:border-white/10 cursor-pointer'
+                : 'border-white/5 bg-[var(--color-bg-overlay)] hover:border-white/10 cursor-pointer'
             ]">
             <div class="flex items-center gap-3 flex-1 min-w-0">
               <!-- Checkbox / Status icon -->

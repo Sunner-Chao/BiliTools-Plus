@@ -29,15 +29,17 @@ from fastapi import APIRouter, File, UploadFile
 from pydantic import BaseModel
 
 from app.core.logger import setup_logging
+from app.services.http_client import create_requests_session
 from app.services.websocket_manager import ws_manager
 
 logger = setup_logging()
 router = APIRouter(prefix="/api/live", tags=["Live"])
 
 # ─── 视频目录 ────────────────────────────────────────────────────────────────
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
+PLUS_ROOT = Path(os.environ.get("BILITOOLS_PLUS_ROOT", Path(__file__).resolve().parents[2])).resolve()
+DATA_DIR = PLUS_ROOT / "data"
 VIDEOS_DIR = DATA_DIR / "videos"
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = PLUS_ROOT
 
 # ─── FFmpeg 日志缓冲 ─────────────────────────────────────────────────────────
 MAX_LOG_LINES = 200
@@ -253,8 +255,9 @@ def _run_ffmpeg_async(video_file: str, rtmp_url: str, quality: str):
 def _call_bilibili_api(url: str, cookies: dict, headers: dict, data: dict) -> dict:
     """调用 B站 API，返回 JSON"""
     try:
-        resp = requests.post(url, cookies=cookies, headers=headers, data=data, timeout=15)
-        return resp.json()
+        with create_requests_session() as session:
+            resp = session.post(url, cookies=cookies, headers=headers, data=data, timeout=15)
+            return resp.json()
     except Exception as e:
         logger.error(f"B站 API 调用失败: {e}")
         return {"code": -1, "msg": str(e)}
@@ -559,11 +562,12 @@ async def get_stream_key(req: StreamKeyRequest):
         # 获取直播间标题等信息
         live_info = {}
         try:
-            info_resp = requests.get(
-                f"https://api.live.bilibili.com/room/v1/Room/get_info?room_id={room_id}",
-                headers={"User-Agent": "Mozilla/5.0"},
-                timeout=10,
-            )
+            with create_requests_session() as session:
+                info_resp = session.get(
+                    f"https://api.live.bilibili.com/room/v1/Room/get_info?room_id={room_id}",
+                    headers={"User-Agent": "Mozilla/5.0"},
+                    timeout=10,
+                )
             info_data = info_resp.json()
             if info_data.get("code") == 0:
                 room_info = info_data.get("data", {})

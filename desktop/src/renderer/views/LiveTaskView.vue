@@ -127,7 +127,7 @@ const uploadVideo = async (event: Event) => {
   if (!file) return
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch('/api/live/videos/upload', { method: 'POST', body: form })
+  const res = await fetch(`${appStore.apiBase}/api/live/videos/upload`, { method: 'POST', body: form })
   const body = await res.json()
   if (body.code === 0) {
     selectedVideo.value = body.data.name

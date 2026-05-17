@@ -5,6 +5,7 @@ v2.2.0 — 新增: 指数退避重试 / 令牌桶限流 / 熔断器 / fail_reaso
 import asyncio
 import hashlib
 import json
+import os
 import random
 import time
 import uuid
@@ -17,6 +18,7 @@ import httpx
 
 from app.services.websocket_manager import ws_manager
 from app.services.config_loader import config_manager
+from app.services.http_client import create_client
 from app.core.logger import setup_logging
 from app.core.rate_limiter import bili_rate_limiter, bili_circuit_breaker
 
@@ -273,7 +275,7 @@ class SnipeEngine:
 
         completed: set[str] = set()
         deadline = time.monotonic() + max(task.holdtime, 1)
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with create_client(timeout=10.0) as client:
             while time.monotonic() < deadline and len(completed) < total and not task._cancel_event.is_set():
                 for i, item in enumerate(selected):
                     if task._cancel_event.is_set():
@@ -397,7 +399,8 @@ def _task_items_for_ids(game: str, ids: List[str]) -> List[dict]:
 
 
 def load_cookie_from_file() -> str:
-    path = Path(__file__).resolve().parents[2] / "cookies" / "bili_cookies.json"
+    root = Path(os.environ.get("BILITOOLS_PLUS_ROOT", Path(__file__).resolve().parents[2])).resolve()
+    path = root / "cookies" / "bili_cookies.json"
     if not path.exists():
         return ""
     try:

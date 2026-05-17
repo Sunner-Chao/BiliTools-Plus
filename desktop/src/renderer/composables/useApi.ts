@@ -54,8 +54,10 @@ export function useApi() {
   }
 
   async function request<T = any>(path: string, options: RequestInit = {}): Promise<any | null> {
+    // 生产模式用绝对 URL（file:// 下相对路径会解析失败）
+    const url = path.startsWith('http') ? path : `${app.apiBase}${path}`
     try {
-      const res = await fetch(path, {
+      const res = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
           ...(app.accessToken ? { Authorization: `Bearer ${app.accessToken}` } : {}),

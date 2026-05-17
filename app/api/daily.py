@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 import random
 import time
 from datetime import datetime, timedelta
@@ -14,10 +15,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services.activity_info import csrf_from_cookie, uid_from_cookie
+from app.services.http_client import create_client
 from app.services.snipe_engine import load_cookie_from_file
 
 router = APIRouter(prefix="/api/daily", tags=["Daily"])
-PLUS_ROOT = Path(__file__).resolve().parents[2]
+PLUS_ROOT = Path(os.environ.get("BILITOOLS_PLUS_ROOT", Path(__file__).resolve().parents[2])).resolve()
 SLOT_COUNT = 4
 DANMAKUS = ["打卡", "路过支持一下", "(⌒▽⌒).", "（￣▽￣）.", "(=・ω・=).", "(｀・ω・´).", "(･∀･).", "(°∀°)ﾉ."]
 _logs: list[dict] = []
@@ -69,7 +71,7 @@ async def _fetch_user(cookies: str) -> dict | None:
     if not cookies:
         return None
     try:
-        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+        async with create_client(timeout=10.0, verify=False) as client:
             payload = (await client.get(
                 "https://api.bilibili.com/x/web-interface/nav",
                 headers={"Cookie": cookies, "User-Agent": "Mozilla/5.0"},
@@ -123,7 +125,7 @@ async def daily_status():
 @router.post("/audience/qrcode")
 async def audience_qrcode(slot: int):
     _slot_path(slot)
-    async with httpx.AsyncClient(timeout=20.0, verify=False) as client:
+    async with create_client(timeout=20.0, verify=False) as client:
         payload = (await client.get(
             "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
             params={"source": "main-fe-header", "_": str(int(time.time() * 1000))},
@@ -151,7 +153,7 @@ async def audience_qrcode_status(qr_key: str):
         return {"status": "expired", "message": "二维码会话不存在或已过期"}
     if time.time() - float(session["created_at"]) > 180:
         return {"status": "expired", "message": "二维码已过期"}
-    async with httpx.AsyncClient(timeout=20.0, verify=False) as client:
+    async with create_client(timeout=20.0, verify=False) as client:
         resp = await client.get(
             "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
             params={"qrcode_key": qr_key, "source": "main-fe-header", "_": str(int(time.time() * 1000))},
@@ -200,7 +202,7 @@ async def validate_audience(req: AudienceActionRequest):
 @router.post("/audience/enter")
 async def enter_live_room(req: AudienceActionRequest):
     cookies, _, user = await _require_slot(req.slot)
-    async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+    async with create_client(timeout=10.0, verify=False) as client:
         payload = (await client.get(
             "https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom",
             params={"room_id": req.room_id},
@@ -264,13 +266,13 @@ async def _send_danmaku_payload(room_id: str, cookies: str, csrf: str, msg: str 
         "csrf_token": csrf,
         "csrf": csrf,
     }
-    async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+    async with create_client(timeout=10.0, verify=False) as client:
         return (await client.post("https://api.live.bilibili.com/msg/send", data=data, headers={"Cookie": cookies, "User-Agent": "Mozilla/5.0"})).json()
 
 
 async def _room_owner_uid(room_id: str, cookies: str) -> str:
     try:
-        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+        async with create_client(timeout=10.0, verify=False) as client:
             payload = (await client.get(
                 "https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom",
                 params={"room_id": room_id},
@@ -302,7 +304,7 @@ async def _send_gift_payload(room_id: str, cookies: str, csrf: str, uid: str, ru
         "csrf": csrf,
         "visit_id": "",
     }
-    async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+    async with create_client(timeout=10.0, verify=False) as client:
         return (await client.post("https://api.live.bilibili.com/xlive/revenue/v1/gift/sendGold", data=data, headers={"Cookie": cookies, "User-Agent": "Mozilla/5.0"})).json()
 
 
@@ -310,7 +312,7 @@ async def _send_gift_payload(room_id: str, cookies: str, csrf: str, uid: str, ru
 async def watch_heartbeat(req: LiveDailyRequest):
     cookies, csrf, _ = _require_cookies(req.cookies)
     data = {"id": f"[{req.room_id},0,0,0]", "device": '["auto-bot","auto-bot"]', "ts": int(time.time()), "is_patch": 0, "heart_beat": [], "ua": "Mozilla/5.0", "csrf_token": csrf, "csrf": csrf, "visit_id": ""}
-    async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+    async with create_client(timeout=10.0, verify=False) as client:
         payload = (await client.post("https://api.live.bilibili.com/xlive/revenue/v1/heartbeat/mobile/watch", data=data, headers={"Cookie": cookies, "User-Agent": "Mozilla/5.0"})).json()
     return {"success": payload.get("code") == 0, "payload": payload}
 
@@ -319,7 +321,7 @@ async def watch_heartbeat(req: LiveDailyRequest):
 async def like_live_room(req: LiveDailyRequest):
     cookies, csrf, uid = _require_cookies(req.cookies)
     data = {"uid": uid, "room_id": req.room_id, "csrf_token": csrf, "csrf": csrf, "visit_id": ""}
-    async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+    async with create_client(timeout=10.0, verify=False) as client:
         payload = (await client.post("https://api.live.bilibili.com/xlive/general-interface/v1/gift/live/LikeLiveRoom", data=data, headers={"Cookie": cookies, "User-Agent": "Mozilla/5.0"})).json()
     return {"success": payload.get("code") == 0, "payload": payload}
 
@@ -327,7 +329,7 @@ async def like_live_room(req: LiveDailyRequest):
 @router.post("/share")
 async def share_live_room(req: LiveDailyRequest):
     cookies, csrf, _ = _require_cookies(req.cookies)
-    async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+    async with create_client(timeout=10.0, verify=False) as client:
         payload = (await client.post("https://api.bilibili.com/x/share/confirm", data={"spmid": "444.7.live", "csrf_token": csrf, "csrf": csrf}, headers={"Cookie": cookies, "User-Agent": "Mozilla/5.0"})).json()
     return {"success": payload.get("code") == 0, "payload": payload}
 
@@ -337,7 +339,7 @@ async def get_gift_bag(cookies: str = ""):
     cookies = cookies or load_cookie_from_file()
     if not cookies:
         raise HTTPException(status_code=400, detail="缺少登录 Cookie")
-    async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+    async with create_client(timeout=10.0, verify=False) as client:
         payload = (await client.get("https://api.live.bilibili.com/xlive/web-room/v1/gift/bag_list", headers={"Cookie": cookies, "User-Agent": "Mozilla/5.0"})).json()
     if payload.get("code") != 0:
         return {"success": False, "payload": payload}

@@ -41,7 +41,12 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:1420", "http://127.0.0.1:1420", "tauri://localhost"],
+    allow_origins=[
+        "http://localhost:1420",
+        "http://127.0.0.1:1420",
+        "tauri://localhost",
+        "null",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,6 +77,11 @@ app.include_router(ntp_router)
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "2.1.0"}
+
+
+@app.get("/api/health")
+async def api_health():
+    return await health()
 
 
 if __name__ == "__main__":

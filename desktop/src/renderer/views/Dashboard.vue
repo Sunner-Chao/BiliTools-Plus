@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
 import { useTaskStore } from '@/stores/useTaskStore'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -58,10 +58,14 @@ function handleManualSnipe(productId: string) {
 }
 
 // ── WebSocket 连接 ───────────────────────────────────
+const wsUrl = computed(() => {
+  const base = app.server.url.replace(/^https?:\/\//, '')
+  return app.accessToken
+    ? `ws://${base}/ws/progress?token=${encodeURIComponent(app.accessToken)}`
+    : `ws://${base}/ws/progress`
+})
 const { status, send } = useWebSocket(
-  app.accessToken
-    ? `ws://localhost:8000/ws/progress?token=${encodeURIComponent(app.accessToken)}`
-    : `ws://localhost:8000/ws/progress`,
+  wsUrl,
   {
   onLog: (msg) => {
     globalLogs.value.push(msg)
@@ -87,13 +91,33 @@ function sendRequestSnipe(productId: string) {
 
 const daySummary = ref({ liveDays: 0, submitCount: 0 })
 
-onMounted(async () => {
-  startNtpSync()
+async function refreshDashboardSummary() {
   const res = await request<{ tasks: any[]; live_task_days: number; submit_task_count: number }>('/api/tasks?game=' + app.currentGame)
   if (res?.data) {
     taskStore.setTasks(res.data.tasks ?? [])
-    daySummary.value = { liveDays: res.data.live_task_days ?? 0, submitCount: res.data.submit_task_count ?? 0 }
+    daySummary.value = {
+      liveDays: res.data.live_task_days ?? daySummary.value.liveDays,
+      submitCount: res.data.submit_task_count ?? daySummary.value.submitCount,
+    }
   }
+  const overview = await request<{ live_days?: number; liveDays?: number; submit_count?: number; submitCount?: number }>(
+    `/api/tasks/overview?game=${encodeURIComponent(app.currentGame)}`,
+  )
+  if (overview) {
+    daySummary.value = {
+      liveDays: overview.live_days ?? overview.liveDays ?? daySummary.value.liveDays,
+      submitCount: overview.submit_count ?? overview.submitCount ?? daySummary.value.submitCount,
+    }
+  }
+}
+
+onMounted(async () => {
+  startNtpSync()
+  await refreshDashboardSummary()
+})
+
+watch(() => app.currentGame, () => {
+  refreshDashboardSummary()
 })
 </script>
 

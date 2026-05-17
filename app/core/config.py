@@ -1,12 +1,13 @@
 """应用核心配置"""
 from __future__ import annotations
+import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=Path(__file__).resolve().parents[2] / "config" / "secrets.env",
+        env_file=Path(os.environ.get("BILITOOLS_PLUS_ROOT", Path(__file__).resolve().parents[2])) / "config" / "secrets.env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
