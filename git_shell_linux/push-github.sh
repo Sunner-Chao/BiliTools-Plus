@@ -68,7 +68,7 @@ normalize_version_tag() {
         return
     fi
     
-    local normalized=$(ech/home/sunner/demo_vscode/LS-ZGTo "$input_version" | tr -d '[:space:]')
+    local normalized=$(echo "$input_version" | tr -d '[:space:]')
     if [ -z "$normalized" ]; then
         echo ""
         return
