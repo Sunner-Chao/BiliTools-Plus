@@ -17,10 +17,6 @@
         "minute": "59",
         "second": "59"
     },
-    "diandian_acount": {
-        "diandian_uid": "外星人",
-        "diandian_pwd": "你猜猜"
-    },
     "obs_info": {
         "obs_live_url": "rtmp://10.105.170.169:1935",
         "obs_streaming_code": "livehime"
