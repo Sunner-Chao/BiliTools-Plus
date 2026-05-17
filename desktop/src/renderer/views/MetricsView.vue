@@ -1,108 +1,118 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { Activity, BarChart3, Radio, RefreshCw, ShieldCheck, Users } from 'lucide-vue-next'
+import { useApi } from '@/composables/useApi'
+
+const api = useApi()
+const loading = ref(false)
+const summary = ref<any>(null)
+
+const cards = computed(() => [
+  { label: '抢码任务', value: summary.value?.total_tasks ?? 0, sub: `成功 ${summary.value?.completed_tasks ?? 0} / 失败 ${summary.value?.failed_tasks ?? 0}` },
+  { label: '运行/等待', value: summary.value?.running_tasks ?? 0, sub: `待执行 ${summary.value?.pending_tasks ?? 0}` },
+  { label: '成功率', value: `${summary.value?.success_rate ?? 0}%`, sub: '基于本地任务记录' },
+  { label: '观众身份', value: `${(summary.value?.daily?.audience_slots || []).filter((s: any) => s.is_valid).length}/4`, sub: `日志 ${summary.value?.daily?.log_count ?? 0} 条` },
+])
+
+async function refresh() {
+  loading.value = true
+  try {
+    summary.value = await api.get('/api/analytics/summary')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(refresh)
+</script>
+
 <template>
-  <div class="space-y-6">
+  <div class="p-6 space-y-6 main-bg min-h-full">
     <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">监控面板</h1>
-      <div class="flex items-center gap-3">
-        <span v-if="summary?.updated_at" class="text-xs text-gray-400 dark:text-gray-500">
-          更新于 {{ updatedAt }}
-        </span>
-        <button
-          @click="refresh"
-          :disabled="loading"
-          class="px-3 py-1.5 text-sm rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
-          aria-label="刷新数据"
-        >
-          {{ loading ? '刷新中...' : '刷新' }}
-        </button>
+      <div>
+        <div class="h-1 w-12 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-hover)] rounded-full mb-3" />
+        <h1 class="text-2xl font-bold text-[var(--color-text-primary)]">数据分析</h1>
+        <p class="text-sm text-[var(--color-text-secondary)] mt-0.5">基于任务、直播、凭证和观众槽位的真实运行数据</p>
+      </div>
+      <button class="btn-primary flex items-center gap-2" :disabled="loading" @click="refresh">
+        <RefreshCw :size="14" /> {{ loading ? '刷新中...' : '刷新' }}
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div v-for="card in cards" :key="card.label" class="glass-card p-5">
+        <div class="text-xs text-[var(--color-text-disabled)]">{{ card.label }}</div>
+        <div class="text-2xl font-bold text-[var(--color-text-primary)] mt-2">{{ card.value }}</div>
+        <div class="text-xs text-[var(--color-text-secondary)] mt-1">{{ card.sub }}</div>
       </div>
     </div>
 
-    <div v-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400" role="alert">
-      {{ error }}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="glass-card p-5">
+        <div class="flex items-center gap-2 mb-4 text-sm font-semibold text-[var(--color-text-primary)]">
+          <BarChart3 :size="16" class="text-[var(--color-primary)]" /> 游戏任务概览
+        </div>
+        <div class="space-y-3">
+          <div v-for="game in summary?.games || []" :key="game.id" class="rounded-lg bg-[var(--color-bg-base)] p-3">
+            <div class="flex items-center justify-between text-sm">
+              <span class="font-medium text-[var(--color-text-primary)]">{{ game.name }}</span>
+              <span class="text-[var(--color-primary)]">{{ game.rate }}%</span>
+            </div>
+            <div class="mt-2 h-2 rounded-full bg-white/5 overflow-hidden">
+              <div class="h-full bg-[var(--color-primary)]" :style="{ width: `${Math.min(game.rate, 100)}%` }" />
+            </div>
+            <div class="mt-2 text-[11px] text-[var(--color-text-disabled)]">
+              已建 {{ game.created_tasks }} · 配置 {{ game.configured_tasks }} · 失败 {{ game.failed }} · 分区 {{ game.area_v2 || '未配置' }}
+            </div>
+          </div>
+          <div v-if="!summary?.games?.length" class="text-sm text-[var(--color-text-disabled)] text-center py-8">暂无游戏配置</div>
+        </div>
+      </div>
+
+      <div class="space-y-6">
+        <div class="glass-card p-5">
+          <div class="flex items-center gap-2 mb-4 text-sm font-semibold text-[var(--color-text-primary)]">
+            <Radio :size="16" class="text-[var(--color-success)]" /> 直播推流
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div class="rounded-lg bg-[var(--color-bg-base)] p-3">
+              <div class="text-[11px] text-[var(--color-text-disabled)]">状态</div>
+              <div class="mt-1 text-[var(--color-text-primary)]">{{ summary?.live?.is_living ? '推流中' : '空闲' }}</div>
+            </div>
+            <div class="rounded-lg bg-[var(--color-bg-base)] p-3">
+              <div class="text-[11px] text-[var(--color-text-disabled)]">房间号</div>
+              <div class="mt-1 text-[var(--color-text-primary)]">{{ summary?.live?.room_id || '-' }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card p-5">
+          <div class="flex items-center gap-2 mb-4 text-sm font-semibold text-[var(--color-text-primary)]">
+            <ShieldCheck :size="16" class="text-[var(--color-warning)]" /> 凭证状态
+          </div>
+          <div class="text-sm text-[var(--color-text-secondary)]">
+            {{ summary?.credential?.valid ? '主账号凭证有效' : '主账号凭证缺失或过期' }}
+            <span v-if="summary?.credential?.expires_at">，到期 {{ summary.credential.expires_at }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-      <MetricsGauge
-        title="请求数/分"
-        :value="summary?.requests_per_min ?? 0"
-        unit="req/min"
-        :max="100"
-        :thresholds="{ warn: 60, danger: 80 }"
-      />
-      <MetricsGauge
-        title="平均延迟"
-        :value="summary?.avg_latency_ms ?? 0"
-        unit="ms"
-        :max="500"
-        :thresholds="{ warn: 200, danger: 400 }"
-      />
-      <MetricsGauge
-        title="B站限流"
-        :value="summary?.bili_429_count ?? 0"
-        unit="次"
-        :max="50"
-        :thresholds="{ warn: 10, danger: 30 }"
-      />
-      <MetricsGauge
-        title="WS 连接"
-        :value="summary?.ws_connections ?? 0"
-        unit="个"
-        :max="50"
-        :thresholds="{ warn: 30, danger: 45 }"
-      />
-      <MetricsGauge
-        title="可用 Token"
-        :value="summary?.available_tokens ?? 0"
-        unit="个"
-        :max="10"
-        :thresholds="{ warn: 3, danger: 1 }"
-      />
-      <MetricsGauge
-        title="队列积压"
-        :value="summary?.queue_size ?? 0"
-        unit="个"
-        :max="100"
-        :thresholds="{ warn: 50, danger: 80 }"
-      />
+    <div class="glass-card p-5">
+      <div class="flex items-center gap-2 mb-4 text-sm font-semibold text-[var(--color-text-primary)]">
+        <Users :size="16" class="text-[var(--color-info)]" /> 观众身份槽位
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div v-for="slot in summary?.daily?.audience_slots || []" :key="slot.slot" class="rounded-lg bg-[var(--color-bg-base)] p-3">
+          <div class="text-sm font-medium text-[var(--color-text-primary)]">观众 {{ slot.slot + 1 }}</div>
+          <div class="text-xs text-[var(--color-text-secondary)] mt-1">{{ slot.name || '未绑定' }}</div>
+          <div class="text-[11px] mt-2" :class="slot.is_valid ? 'text-[var(--color-success)]' : 'text-[var(--color-warning)]'">
+            {{ slot.is_valid ? '有效' : slot.has_cookie ? '需重新验证' : '未配置' }}
+          </div>
+        </div>
+      </div>
     </div>
 
-    <MetricsChart
-      title="请求量 & 延迟趋势"
-      :data="history"
-      :series="requestSeries"
-    />
-
-    <MetricsChart
-      title="B站限流趋势"
-      :data="history"
-      :series="errorSeries"
-    />
+    <div class="text-xs text-[var(--color-text-disabled)]">更新于 {{ summary?.updated_at || '-' }}</div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { computed } from 'vue'
-import { useMetrics } from '@/composables/useMetrics'
-import MetricsChart from '@/components/MetricsChart.vue'
-import MetricsGauge from '@/components/MetricsGauge.vue'
-
-const { summary, history, loading, error, refresh } = useMetrics('5m', 30000)
-
-const updatedAt = computed(() => {
-  if (!summary.value?.updated_at) return ''
-  try {
-    return new Date(summary.value.updated_at).toLocaleTimeString()
-  } catch {
-    return summary.value.updated_at
-  }
-})
-
-const requestSeries = [
-  { name: '请求数/分', key: 'rpm' as const, color: '#3b82f6' },
-  { name: '延迟(ms)', key: 'latency' as const, color: '#10b981' },
-]
-
-const errorSeries = [
-  { name: '429次数', key: 'errors_429' as const, color: '#f59e0b' },
-]
-</script>

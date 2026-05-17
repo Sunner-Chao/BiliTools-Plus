@@ -8,6 +8,8 @@ from app.api.accounts import router as accounts_router
 from app.api.tasks import router as tasks_router
 from app.api.live import router as live_router
 from app.api.daily import router as daily_router
+from app.api.analytics import router as analytics_router
+from app.api.settings import router as settings_router
 from app.api.websocket import router as ws_router
 from app.api.ntp import router as ntp_router
 from app.core.logger import setup_logging
@@ -61,6 +63,8 @@ app.include_router(accounts_router)
 app.include_router(tasks_router)
 app.include_router(live_router)
 app.include_router(daily_router)
+app.include_router(analytics_router)
+app.include_router(settings_router)
 app.include_router(ws_router)
 app.include_router(ntp_router)
 

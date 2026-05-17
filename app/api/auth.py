@@ -110,13 +110,48 @@ async def _fetch_user_info(cookies_str: str) -> dict:
 def _save_cookies_to_file(cookies_str: str, uid: str = ""):
     """保存 cookies 到文件 — 复刻 src 的 cookies 目录结构"""
     try:
+        now = datetime.now()
+        valid_days = 14
+        settings_path = os.path.join(CONFIG_DIR, "app_settings.json")
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, "r", encoding="utf-8") as sf:
+                    valid_days = max(int(json.load(sf).get("credential_valid_days", 14)), 1)
+            except Exception:
+                valid_days = 14
         # bili_cookies.json（主格式，复刻 src）
         cookies_json_path = os.path.join(COOKIES_DIR, "bili_cookies.json")
         with open(cookies_json_path, "w", encoding="utf-8") as f:
-            json.dump({"COOKIES": cookies_str, "uid": uid}, f, ensure_ascii=False, indent=4)
+            json.dump({
+                "COOKIES": cookies_str,
+                "uid": uid,
+                "saved_at": now.isoformat(timespec="seconds"),
+                "expires_at": (now + timedelta(days=valid_days)).isoformat(timespec="seconds"),
+            }, f, ensure_ascii=False, indent=4)
         logger.info(f"[Auth] cookies 已保存到 {cookies_json_path}")
     except Exception as e:
         logger.warning(f"[Auth] cookies 保存失败: {e}")
+
+
+def _credential_meta() -> dict:
+    path = os.path.join(COOKIES_DIR, "bili_cookies.json")
+    if not os.path.exists(path):
+        return {"exists": False, "valid": False}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        expires_at = data.get("expires_at")
+        valid = bool(data.get("COOKIES")) and (not expires_at or datetime.fromisoformat(expires_at) > datetime.now())
+        return {
+            "exists": True,
+            "valid": valid,
+            "uid": data.get("uid", ""),
+            "saved_at": data.get("saved_at", ""),
+            "expires_at": expires_at or "",
+            "path": path,
+        }
+    except Exception as exc:
+        return {"exists": True, "valid": False, "error": str(exc), "path": path}
 
 
 def _save_user_info_to_file(user_info: dict):
