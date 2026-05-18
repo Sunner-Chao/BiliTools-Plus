@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
-import { Radio, Video, Settings2, Play, Pause, RefreshCw, Monitor, Smartphone, Signal } from 'lucide-vue-next'
+import { Radio, Video, Settings2, Play, Pause, RefreshCw, Monitor, Smartphone, Signal, FolderOpen, Upload, Check } from 'lucide-vue-next'
 import { useApi } from '@/composables/useApi'
 import { useToast } from '@/composables/useToast'
 
@@ -17,6 +17,7 @@ const liveStatus = ref<'idle'|'running'|'error'>('idle')
 // Live config
 const selectedVideo = ref('')
 const selectedVideoPath = ref('')
+const roomId = ref(appStore.room_id || '')
 const qualityMode = ref<'原画'|'高清'|'流畅'>('原画')
 const bitrate = ref(4000)
 const fps = ref(30)
@@ -26,6 +27,16 @@ const streamKey = ref('')
 const scheduledStart = ref('')
 const durationSec = ref(0)
 const uploadInput = ref<HTMLInputElement | null>(null)
+
+// Upload progress
+const uploading = ref(false)
+const uploadProgressPercent = ref(0)
+const uploadFileName = ref('')
+const localFilePath = ref('')
+const usingLocalPath = ref(false)
+
+const hasVideo = computed(() => !!selectedVideoPath.value)
+const effectiveRoomId = computed(() => (roomId.value || appStore.room_id || '').trim())
 
 const videos = ref<Array<{ id: string; name: string; path: string; size: string }>>([])
 
@@ -43,16 +54,17 @@ const setQuality = (q: string) => {
 }
 
 const fetchStreamKey = async () => {
-  if (!appStore.room_id) { toast.warning('未获取到房间号，请先登录'); return }
+  if (!effectiveRoomId.value && !appStore.cookies) { toast.warning('请先登录或手动输入直播间号'); return }
   toast.info('正在从B站获取推流信息...')
   try {
     const res = await api.post<any>('/api/live/stream_key', {
-      room_id: appStore.room_id,
+      room_id: effectiveRoomId.value,
       cookies: appStore.cookies || '',
       csrf: appStore.bili_jct || '',
     })
     const data = res?.data ?? res
     if (data?.rtmp_url) {
+      if (effectiveRoomId.value) appStore.setRoomId(effectiveRoomId.value)
       rtmpUrl.value = data.rtmp_url
       streamKey.value = data.stream_key || ''
       toast.success('推流信息获取成功')
@@ -85,6 +97,7 @@ let logsInterval: ReturnType<typeof setInterval> | null = null
 
 const startLive = async () => {
   if (!selectedVideoPath.value) { toast.warning('请先选择一个视频'); return }
+  if (!effectiveRoomId.value && !appStore.cookies) { toast.warning('请先登录或手动输入直播间号'); return }
   liveStatus.value = 'running'
   toast.success('正在启动直播推流...')
 
@@ -94,7 +107,7 @@ const startLive = async () => {
 
   try {
     const res = await api.post<any>('/api/live/start', {
-      room_id: appStore.room_id || '0',
+      room_id: effectiveRoomId.value,
       video_file: selectedVideoPath.value,
       rtmp_url: rtmpUrl.value,
       stream_key: streamKey.value,
@@ -107,6 +120,7 @@ const startLive = async () => {
     })
     const status = res?.data?.status ?? res?.status
     if (status === 'started' || status === 'scheduled') {
+      if (res?.data?.room_id) appStore.setRoomId(String(res.data.room_id))
       isLive.value = true
       liveStatus.value = 'running'
       toast.success(status === 'scheduled' ? '定时推流已创建' : '直播推流已启动')
@@ -122,20 +136,68 @@ const startLive = async () => {
   }
 }
 
-const uploadVideo = async (event: Event) => {
+const uploadVideo = (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
+
+  uploading.value = true
+  uploadProgressPercent.value = 0
+  uploadFileName.value = file.name
+
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch(`${appStore.apiBase}/api/live/videos/upload`, { method: 'POST', body: form })
-  const body = await res.json()
-  if (body.code === 0) {
-    selectedVideo.value = body.data.name
-    selectedVideoPath.value = body.data.path
-    toast.success('视频已导入')
+
+  const xhr = new XMLHttpRequest()
+  xhr.open('POST', `${appStore.apiBase}/api/live/videos/upload`)
+
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      uploadProgressPercent.value = Math.round((e.loaded / e.total) * 100)
+    }
+  }
+
+  xhr.onload = async () => {
+    uploading.value = false
+    try {
+      const body = JSON.parse(xhr.responseText)
+      if (body.code === 0) {
+      selectedVideo.value = body.data.name
+      selectedVideoPath.value = body.data.path
+      localFilePath.value = body.data.path
+        usingLocalPath.value = false
+        toast.success('视频已导入')
+        await loadVideos()
+      } else {
+        toast.error(body.msg || '视频导入失败')
+      }
+    } catch {
+      toast.error('视频导入失败')
+    }
+  }
+
+  xhr.onerror = () => {
+    uploading.value = false
+    toast.error('上传失败，请检查网络连接')
+  }
+
+  xhr.send(form)
+}
+
+const useLocalPath = async () => {
+  const path = localFilePath.value.trim()
+  if (!path) { toast.warning('请输入视频文件路径'); return }
+
+  // Verify the path exists via backend
+  const res = await api.post<any>('/api/live/videos/local', { path })
+  if (res?.success || res?.code === 0) {
+    selectedVideo.value = res.data?.name || path.split(/[/\\]/).pop() || path
+    selectedVideoPath.value = res.data?.path || path
+    usingLocalPath.value = true
+    uploadProgressPercent.value = 100
+    toast.success('本地路径已设置，无需复制文件')
     await loadVideos()
   } else {
-    toast.error(body.msg || '视频导入失败')
+    toast.error(res?.msg || '文件不存在或无法访问')
   }
 }
 
@@ -160,7 +222,7 @@ const stopLive = async () => {
   toast.warning('正在停止推流...')
   try {
     await api.post('/api/live/stop', {
-      room_id: appStore.room_id || '0',
+      room_id: effectiveRoomId.value,
       cookies: appStore.cookies || '',
       csrf: appStore.bili_jct || '',
       csrf_token: appStore.bili_jct || '',
@@ -221,6 +283,7 @@ const logs = ref<Array<{ time: string; level: string; msg: string }>>([
 ])
 
 onMounted(async () => {
+  roomId.value = appStore.room_id || roomId.value
   // 获取视频列表
   try {
     await loadVideos()
@@ -237,6 +300,10 @@ onMounted(async () => {
   } catch { /* 忽略 */ }
 })
 
+watch(() => appStore.room_id, (next) => {
+  if (next && !roomId.value) roomId.value = next
+})
+
 onUnmounted(() => {
   if (statsInterval) clearInterval(statsInterval)
   if (logsInterval) clearInterval(logsInterval)
@@ -245,6 +312,8 @@ onUnmounted(() => {
 const selectVideo = (video: typeof videos.value[0]) => {
   selectedVideo.value = video.name
   selectedVideoPath.value = video.path
+  localFilePath.value = video.path
+  usingLocalPath.value = false
   toast.info(`已选择: ${video.name}`)
 }
 
@@ -253,6 +322,7 @@ const levelColors: Record<string, string> = {
   success: 'text-[var(--color-success)]',
   error: 'text-[var(--color-error)]',
   warn: 'text-[var(--color-warning)]',
+  warning: 'text-[var(--color-warning)]',
 }
 </script>
 
@@ -308,9 +378,34 @@ const levelColors: Record<string, string> = {
           <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">选择视频</h3>
           <div class="flex items-center gap-2">
             <input ref="uploadInput" type="file" accept="video/*" class="hidden" @change="uploadVideo" />
-            <button @click="uploadInput?.click()" class="btn-ghost text-[10px] px-3 py-1">浏览文件</button>
+            <button @click="uploadInput?.click()" :disabled="uploading" class="btn-ghost text-[10px] px-3 py-1 flex items-center gap-1">
+              <Upload :size="12" /> 浏览文件
+            </button>
             <span class="text-[10px] text-[var(--color-text-disabled)]">{{ videos.length }} 个视频</span>
           </div>
+        </div>
+
+        <!-- Upload Progress Bar -->
+        <div v-if="uploading" class="mb-4 animate-slide-up">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs text-[var(--color-text-secondary)] truncate max-w-60">{{ uploadFileName }}</span>
+            <span class="text-xs font-mono text-[var(--color-primary)]">{{ uploadProgressPercent }}%</span>
+          </div>
+          <div class="h-2 rounded-full bg-white/5 overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-hover)] rounded-full transition-all duration-300"
+              :style="{ width: `${uploadProgressPercent}%` }" />
+          </div>
+        </div>
+
+        <!-- Local Path Input -->
+        <div class="mb-4 flex gap-2">
+          <div class="flex-1 relative">
+            <FolderOpen :size="14" class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-disabled)]" />
+            <input v-model="localFilePath" type="text" placeholder="或输入本地视频路径 (如 D:\videos\demo.mp4)" class="input-field w-full pl-9 text-xs" @keyup.enter="useLocalPath" />
+          </div>
+          <button @click="useLocalPath" :disabled="!localFilePath.trim()" class="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1 shrink-0">
+            <Check :size="14" /> 使用
+          </button>
         </div>
         <div class="space-y-2">
           <div v-for="video in videos" :key="video.id"
@@ -331,7 +426,8 @@ const levelColors: Record<string, string> = {
               <div class="text-xs font-medium text-[var(--color-text-primary)] truncate">{{ video.name }}</div>
               <div class="text-[10px] text-[var(--color-text-disabled)] mt-0.5">{{ video.size }}</div>
             </div>
-            <div v-if="selectedVideo === video.name" class="w-2 h-2 rounded-full bg-[var(--color-primary)] shrink-0" />
+            <div v-if="selectedVideo === video.name && !usingLocalPath" class="w-2 h-2 rounded-full bg-[var(--color-primary)] shrink-0" />
+            <span v-if="selectedVideo === video.name && usingLocalPath" class="text-[10px] text-[var(--color-primary)] shrink-0">本地</span>
           </div>
         </div>
       </div>
@@ -370,6 +466,10 @@ const levelColors: Record<string, string> = {
               <option>1280x720</option>
               <option>854x480</option>
             </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-[var(--color-text-disabled)] mb-1.5 block">直播间号</label>
+            <input v-model="roomId" type="text" class="input-field w-full text-sm" placeholder="登录后自动填充，也可手动输入" />
           </div>
           <div>
             <label class="text-[10px] text-[var(--color-text-disabled)] mb-1.5 block">RTMP 地址</label>

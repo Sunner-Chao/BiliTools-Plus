@@ -14,12 +14,12 @@ class Settings(BaseSettings):
 
     bili_sign_salt: str = ""
     bili_coupon_salt: str = ""
-    jwt_secret: str = "CHANGE-ME-IN-PRODUCTION"
+    jwt_secret: str = os.environ.get("BILITOOLS_JWT_SECRET", "CHANGE-ME-IN-PRODUCTION")
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
-    database_url: str = "sqlite+aiosqlite:///./data/bili_tools.db"
-    host: str = "0.0.0.0"
-    port: int = 8000
+    database_url: str = os.environ.get("BILITOOLS_DATABASE_URL", "sqlite+aiosqlite:///./data/bili_tools.db")
+    host: str = os.environ.get("BILITOOLS_HOST", "0.0.0.0")
+    port: int = int(os.environ.get("BILITOOLS_PORT", os.environ.get("PORT", "8001")))
     cors_origins: list[str] = ["http://localhost:1420", "http://127.0.0.1:1420"]
     ws_heartbeat_interval: int = 25
     bili_request_interval: float = 0.5

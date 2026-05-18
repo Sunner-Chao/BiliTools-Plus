@@ -175,7 +175,7 @@ export function useWebSocket(url: MaybeRefOrGetter<string>, handlers: WsHandlers
 
     ws.onclose = (event) => {
       status.value = 'disconnected'
-      app.globalWsStatus = 'disconnected'
+      if (!intentionalClose) app.globalWsStatus = 'disconnected'
       handlers.onStatusChange?.('disconnected')
 
       // 4001 = token 失效 / 4003 = JWT 签名失败 → 不重连，直接跳登录
@@ -228,7 +228,6 @@ export function useWebSocket(url: MaybeRefOrGetter<string>, handlers: WsHandlers
     ws?.close()
     ws = null
     status.value = 'disconnected'
-    app.globalWsStatus = 'disconnected'
   }
 
   function send(data: unknown) {

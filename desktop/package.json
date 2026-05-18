@@ -6,9 +6,10 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "vite",
-    "dev:electron": "MODE=electron vite",
+    "dev:electron": "vite --mode electron",
+    "dev:web": "vite --mode web",
     "build": "vue-tsc --noEmit && vite build",
-    "build:electron": "vue-tsc --noEmit && MODE=electron vite build",
+    "build:electron": "vue-tsc --noEmit && vite build --mode electron",
     "package": "electron-builder",
     "preview": "vite preview",
     "test": "vitest run"

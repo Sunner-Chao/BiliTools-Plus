@@ -188,20 +188,6 @@ watch(() => app.currentGame, () => {
       </div>
     </div>
 
-    <!-- Game selector -->
-    <div class="glass-card p-4">
-      <div class="flex items-center gap-3">
-        <span class="text-sm font-semibold text-[var(--color-text-secondary)]">切换分区</span>
-        <div class="flex gap-2 ml-2">
-          <button v-for="g in app.games" :key="g.key" @click="app.setGame(g.key)"
-            :class="['px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              app.currentGame === g.key ? 'bg-[var(--color-primary)]/15 text-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/25' : 'text-[var(--color-text-secondary)] hover:bg-white/5 hover:text-[var(--color-text-primary)]']">
-            {{ g.label }}
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- P6: 商品库存监控 -->
     <section v-if="stockStates.size > 0">
       <div class="flex items-center gap-2 mb-3">

@@ -135,8 +135,10 @@ async function fetchQR() {
       currentQRKey.value = data.data.qrcode_key
       qrStatus.value = 'pending'
       startPolling(data.data.qrcode_key)
-    } else {
+    } else if (data) {
       error.value = data.msg || '生成二维码失败'
+    } else {
+      error.value = '生成二维码失败，请检查后端服务'
     }
   } catch (e: any) {
     error.value = '网络错误: ' + (e.message || String(e))
@@ -191,8 +193,11 @@ async function confirmLogin(qrcode_key: string) {
       applyLoginPayload(data.data)
       stopPolling()
       setTimeout(() => router.push('/'), 800)
-    } else {
+    } else if (data) {
       error.value = data.msg || '确认登录失败'
+      qrStatus.value = 'failed'
+    } else {
+      error.value = '确认登录失败，请检查后端服务'
       qrStatus.value = 'failed'
     }
   } catch (e: any) {
@@ -242,8 +247,10 @@ async function handleCookieLogin() {
       applyLoginPayload(data.data)
       cookieInput.value = ''
       setTimeout(() => router.push('/'), 300)
-    } else {
+    } else if (data) {
       error.value = data.msg || 'Cookie 登录失败'
+    } else {
+      error.value = 'Cookie 登录失败，请检查后端服务'
     }
   } catch (e: any) {
     error.value = 'Cookie 登录失败: ' + (e.message || String(e))

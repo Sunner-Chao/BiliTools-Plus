@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import uvicorn
 
+from app.core.config import settings
 from app.main import app
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run(app, host=settings.host, port=settings.port, log_level="info")

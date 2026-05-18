@@ -12,21 +12,24 @@ const taskStore = useTaskStore()
 const api = useApi()
 const toast = useToast()
 
-// ── Activity countdown ──
-const countdownTarget = ref<string>('')
-const countdownActive = ref(false)
+// ── Activity countdown (driven by robPeriod) ──
 let timerInterval: ReturnType<typeof setInterval> | null = null
 let statusInterval: ReturnType<typeof setInterval> | null = null
 
 const countdownDisplay = ref({ days: 0, hours: 0, minutes: 0, seconds: 0 })
 
+const countdownActive = computed(() => {
+  if (!robPeriod.value) return false
+  return new Date(robPeriod.value).getTime() > Date.now()
+})
+
 const updateCountdown = () => {
-  if (!countdownActive.value || !countdownTarget.value) {
+  if (!robPeriod.value) {
     countdownDisplay.value = { days: 0, hours: 0, minutes: 0, seconds: 0 }
     return
   }
   const now = Date.now()
-  const target = new Date(countdownTarget.value).getTime()
+  const target = new Date(robPeriod.value).getTime()
   const diff = Math.max(0, target - now)
   countdownDisplay.value = {
     days: Math.floor(diff / 86400000),
@@ -34,23 +37,10 @@ const updateCountdown = () => {
     minutes: Math.floor((diff % 3600000) / 60000),
     seconds: Math.floor((diff % 60000) / 1000),
   }
-  if (diff === 0) {
-    countdownActive.value = false
-    toast.warning('抢购时间已到！')
-  }
-}
-
-const startCountdown = () => {
-  if (!countdownTarget.value) { toast.warning('请先设置抢购时间'); return }
-  countdownActive.value = true
-  // Auto-fill robPeriod with countdown target
-  robPeriod.value = countdownTarget.value.replace('T', ' ').replace(/Z$|[+-]\d{2}:\d{2}$/, '')
-  toast.success('倒计时已启动')
 }
 
 const setQuickTime = (offsetMs: number) => {
-  countdownTarget.value = new Date(Date.now() + offsetMs).toISOString().slice(0, 19)
-  countdownActive.value = true
+  robPeriod.value = new Date(Date.now() + offsetMs).toISOString().slice(0, 16)
   toast.success(`已设置 ${offsetMs < 60000 ? offsetMs / 1000 + '秒' : offsetMs / 60000 + '分钟'} 后开始`)
 }
 
@@ -98,10 +88,10 @@ const loadOverview = async () => {
     const params = new URLSearchParams({ game: app.currentGame, source_url: sourceUrl.value })
     const res = await api.get<any>(`/api/tasks/overview?${params.toString()}`)
     overview.value = res || {}
-    // Auto-fill countdown from activity end_time
+    // Auto-fill robPeriod from activity end_time
     if (overview.value?.activity?.end_time) {
-      countdownTarget.value = overview.value.activity.end_time.slice(0, 19)
-      countdownActive.value = true
+      const endTime = overview.value.activity.end_time.slice(0, 16)
+      if (!robPeriod.value) robPeriod.value = endTime
     }
   } catch { /* ignore */ }
   overviewLoading.value = false
@@ -317,48 +307,35 @@ const refreshAll = () => {
       </div>
     </div>
 
-    <!-- Countdown Timer Card -->
+    <!-- Countdown Timer Card (driven by 抢购时间 in config panel) -->
     <div class="glass-card p-6">
-      <div class="flex items-center gap-2 mb-5">
-        <Timer :size="16" class="text-[var(--color-primary)]" />
-        <span class="text-sm font-medium text-[var(--color-text-secondary)]">抢购倒计时</span>
-        <span v-if="countdownActive" class="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)]">运行中</span>
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <Timer :size="16" class="text-[var(--color-primary)]" />
+          <span class="text-sm font-medium text-[var(--color-text-secondary)]">抢购倒计时</span>
+          <span v-if="countdownActive" class="text-[10px] px-2 py-0.5 rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)]">运行中</span>
+        </div>
+        <div class="flex gap-2">
+          <button @click="setQuickTime(30000)" class="btn-ghost text-[10px] px-2 py-1">30秒</button>
+          <button @click="setQuickTime(60000)" class="btn-ghost text-[10px] px-2 py-1">1分钟</button>
+          <button @click="setQuickTime(300000)" class="btn-ghost text-[10px] px-2 py-1">5分钟</button>
+          <button @click="setQuickTime(600000)" class="btn-ghost text-[10px] px-2 py-1">10分钟</button>
+        </div>
       </div>
 
-      <div class="flex flex-col lg:flex-row items-center gap-6">
-        <!-- Countdown Display -->
-        <div class="flex-1 w-full">
-          <div v-if="countdownActive" class="grid grid-cols-4 gap-3">
-            <div v-for="(val, label) in { 天: countdownDisplay.days, 时: countdownDisplay.hours, 分: countdownDisplay.minutes, 秒: countdownDisplay.seconds }" :key="label"
-              class="bg-[var(--color-bg-base)] rounded-2xl p-4 text-center border border-white/5">
-              <div class="text-3xl font-bold text-[var(--color-text-primary)] tabular-nums">
-                {{ String(val).padStart(2, '0') }}
-              </div>
-              <div class="text-[10px] text-[var(--color-text-disabled)] mt-1 uppercase tracking-wider">{{ label }}</div>
-            </div>
+      <!-- Countdown Display -->
+      <div v-if="countdownActive" class="grid grid-cols-4 gap-3">
+        <div v-for="(val, label) in { 天: countdownDisplay.days, 时: countdownDisplay.hours, 分: countdownDisplay.minutes, 秒: countdownDisplay.seconds }" :key="label"
+          class="bg-[var(--color-bg-base)] rounded-2xl p-4 text-center border border-white/5">
+          <div class="text-3xl font-bold text-[var(--color-text-primary)] tabular-nums">
+            {{ String(val).padStart(2, '0') }}
           </div>
-          <div v-else class="text-center py-8">
-            <div class="text-4xl font-bold text-[var(--color-text-disabled)] tabular-nums">--:--:--</div>
-            <p class="text-sm text-[var(--color-text-disabled)] mt-2">设置倒计时时间或等待活动信息自动加载</p>
-          </div>
+          <div class="text-[10px] text-[var(--color-text-disabled)] mt-1 uppercase tracking-wider">{{ label }}</div>
         </div>
-
-        <!-- Controls -->
-        <div class="flex flex-col gap-3 w-full lg:w-auto">
-          <input v-model="countdownTarget" type="datetime-local" class="input-field w-full lg:w-64 text-xs" />
-          <div class="flex gap-2 flex-wrap">
-            <button @click="startCountdown" class="btn-primary flex items-center gap-1.5 text-sm">
-              <Play :size="14" /> 启动
-            </button>
-            <button @click="countdownActive = false" class="btn-ghost flex items-center gap-1.5 text-sm">
-              <Pause :size="14" /> 暂停
-            </button>
-            <button @click="setQuickTime(30000)" class="btn-ghost text-xs px-3 py-2">30秒</button>
-            <button @click="setQuickTime(60000)" class="btn-ghost text-xs px-3 py-2">1分钟</button>
-            <button @click="setQuickTime(300000)" class="btn-ghost text-xs px-3 py-2">5分钟</button>
-            <button @click="setQuickTime(600000)" class="btn-ghost text-xs px-3 py-2">10分钟</button>
-          </div>
-        </div>
+      </div>
+      <div v-else class="text-center py-8">
+        <div class="text-4xl font-bold text-[var(--color-text-disabled)] tabular-nums">--:--:--</div>
+        <p class="text-sm text-[var(--color-text-disabled)] mt-2">在下方配置面板设置抢购时间，倒计时将自动启动</p>
       </div>
     </div>
 

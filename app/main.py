@@ -12,6 +12,7 @@ from app.api.analytics import router as analytics_router
 from app.api.settings import router as settings_router
 from app.api.websocket import router as ws_router
 from app.api.ntp import router as ntp_router
+from app.core.config import settings
 from app.core.logger import setup_logging
 from app.models.db import engine, Base
 
@@ -41,12 +42,7 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:1420",
-        "http://127.0.0.1:1420",
-        "tauri://localhost",
-        "null",
-    ],
+    allow_origins=settings.cors_origins + ["tauri://localhost", "null"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -86,4 +82,4 @@ async def api_health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:app", host=settings.host, port=settings.port, reload=True)

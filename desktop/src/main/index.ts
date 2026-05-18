@@ -8,10 +8,13 @@ import net from 'net';
 let mainWindow: BrowserWindow | null = null;
 let backendProcess: ChildProcess | null = null;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const backendHost = process.env.BILITOOLS_HOST || '127.0.0.1';
+const backendPort = Number(process.env.BILITOOLS_PORT || process.env.PORT || '8001');
+const backendOrigin = `http://${backendHost}:${backendPort}`;
 
 function isBackendListening(): Promise<boolean> {
   return new Promise((resolve) => {
-    const probe = net.createConnection(8000, '127.0.0.1');
+    const probe = net.createConnection(backendPort, backendHost);
     probe.once('connect', () => {
       probe.destroy();
       resolve(true);
@@ -26,7 +29,7 @@ function isBackendListening(): Promise<boolean> {
 
 async function startBackend(): Promise<void> {
   if (await isBackendListening()) {
-    console.log('[Plus] Reusing existing backend on 127.0.0.1:8000');
+    console.log(`[Plus] Reusing existing backend on ${backendOrigin}`);
     return;
   }
 
@@ -65,7 +68,7 @@ async function startBackend(): Promise<void> {
     backendProcess = spawn(command, args, {
       cwd: backendDir,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, PYTHONUNBUFFERED: '1', BILITOOLS_PLUS_ROOT: backendDir },
+      env: { ...process.env, PYTHONUNBUFFERED: '1', BILITOOLS_PLUS_ROOT: backendDir, PORT: String(backendPort) },
     });
 
     let started = false;
@@ -125,7 +128,7 @@ app.whenReady().then(async () => {
       ...(details.responseHeaders || {}),
     };
     // Inject CORS headers for backend responses so file:// renderer can read them
-    if (details.url.startsWith('http://127.0.0.1:8000') || details.url.startsWith('http://localhost:8000')) {
+    if (details.url.startsWith(backendOrigin) || details.url.startsWith(`http://localhost:${backendPort}`)) {
       responseHeaders['access-control-allow-origin'] = ['*'];
       responseHeaders['access-control-allow-headers'] = ['*'];
       responseHeaders['access-control-allow-methods'] = ['GET, POST, PUT, DELETE, OPTIONS'];

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/useAppStore'
 import { useTheme } from '@/composables/useTheme'
@@ -10,6 +11,7 @@ import { LayoutDashboard, Crosshair, Radio, UserCog, Settings, Activity, Sun, Mo
 const router = useRouter()
 const app = useAppStore()
 const { theme, toggle: toggleTheme } = useTheme()
+let healthTimer: ReturnType<typeof setInterval> | null = null
 
 const navItems = [
   { path: '/',          label: '仪表盘', icon: LayoutDashboard },
@@ -20,6 +22,27 @@ const navItems = [
   { path: '/metrics',   label: '监控面板', icon: Activity },
   { path: '/settings',  label: '设置',    icon: Settings },
 ]
+
+async function checkBackendHealth() {
+  try {
+    const res = await fetch(`${app.apiBase}/api/health`, { cache: 'no-store' })
+    const connected = res.ok
+    app.setServerConnected(connected)
+    app.globalWsStatus = connected ? 'connected' : 'disconnected'
+  } catch {
+    app.setServerConnected(false)
+    app.globalWsStatus = 'disconnected'
+  }
+}
+
+onMounted(() => {
+  checkBackendHealth()
+  healthTimer = setInterval(checkBackendHealth, 5000)
+})
+
+onUnmounted(() => {
+  if (healthTimer) clearInterval(healthTimer)
+})
 </script>
 
 <template>

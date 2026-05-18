@@ -19,6 +19,7 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
+from fractions import Fraction
 from pathlib import Path
 from threading import Thread
 from typing import Optional
@@ -29,6 +30,7 @@ from fastapi import APIRouter, File, UploadFile
 from pydantic import BaseModel
 
 from app.core.logger import setup_logging
+from app.api.auth import _fetch_user_info
 from app.services.http_client import create_requests_session
 from app.services.websocket_manager import ws_manager
 
@@ -177,7 +179,7 @@ def _probe_video(video_path: str) -> Optional[dict]:
         stream = data["streams"][0]
         w = int(stream["width"])
         h = int(stream["height"])
-        fps = eval(stream["r_frame_rate"])
+        fps = float(Fraction(stream["r_frame_rate"]))
         br = int(stream.get("bit_rate", 4000000)) // 1000
         _append_log(f"视频参数: {w}x{h} {fps}fps {br}kbps", "info")
         return {"width": w, "height": h, "fps": fps, "bitrate": br}
@@ -196,7 +198,7 @@ def _run_ffmpeg_async(video_file: str, rtmp_url: str, quality: str):
         _live_state.reset()
         return
 
-    cpu_mode = False  # 优先尝试 GPU
+    cpu_mode = os.environ.get("BILITOOLS_LIVE_CPU_MODE", "1").lower() not in {"0", "false", "no"}
     vcodec = _detect_gpu_encoder(cpu_mode)
     params = _get_ffmpeg_params(
         quality, vcodec,
@@ -214,12 +216,22 @@ def _run_ffmpeg_async(video_file: str, rtmp_url: str, quality: str):
     _append_log(f"FFmpeg 路径: {ffmpeg_path}", "info")
 
     try:
+        vcodec = params.pop("vcodec")
+        ffmpeg_args = [
+            ffmpeg_path,
+            "-hide_banner",
+            "-re",
+            "-stream_loop", "-1",
+            "-fflags", "+genpts",
+            "-i", video_file,
+            "-c:v", vcodec,
+        ]
+        for key, value in params.items():
+            ffmpeg_args.extend([f"-{key}", str(value)])
+        ffmpeg_args.extend(["-pix_fmt", "yuv420p", full_url])
+
         proc = subprocess.Popen(
-            [ffmpeg_path,
-             "-re", "-stream_loop", "-1", "-i", video_file,
-             "-c:v", params.pop("vcodec"),
-             *sum([[k, v] for k, v in params.items()], []),
-             "-f", "flv", full_url],
+            ffmpeg_args,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
         _live_state.ffmpeg_process = proc
@@ -272,6 +284,29 @@ def _build_bili_headers(csrf: str) -> dict:
         "referer": "https://link.bilibili.com/p/center/index",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36",
     }
+
+
+def _parse_cookie_string(cookies: str) -> dict:
+    cookie_dict = {}
+    for part in (cookies or "").split(";"):
+        if "=" in part:
+            k, v = part.strip().split("=", 1)
+            cookie_dict[k.strip()] = v.strip()
+    return cookie_dict
+
+
+async def _resolve_room_id(room_id: str, cookies: str) -> str:
+    room_id = str(room_id or "").strip()
+    if room_id and room_id != "0":
+        return room_id
+    if not cookies:
+        return ""
+    try:
+        user_info = await _fetch_user_info(cookies)
+        return str(user_info.get("room_id") or "").strip()
+    except Exception as exc:
+        logger.warning(f"从 Cookie 获取直播间号失败: {exc}")
+        return ""
 
 
 def _bili_start_live(room_id: str, csrf: str, csrf_token: str,
@@ -373,6 +408,29 @@ async def upload_video(file: UploadFile = File(...)):
     return {"code": 0, "msg": "上传成功", "data": {"name": target.name, "path": str(target.resolve())}}
 
 
+class LocalVideoRequest(BaseModel):
+    path: str
+
+
+@router.post("/videos/local")
+async def set_local_video(req: LocalVideoRequest):
+    """验证本地视频路径是否存在且可访问，无需复制文件，ffmpeg 直接读取。"""
+    import os
+    local = Path(req.path).resolve()
+    if not local.exists():
+        return {"code": 404, "msg": f"文件不存在: {local}", "data": None}
+    if not local.is_file():
+        return {"code": 400, "msg": f"不是文件: {local}", "data": None}
+    suffix = local.suffix.lower()
+    if suffix not in {".mp4", ".mkv", ".flv", ".mov"}:
+        return {"code": 400, "msg": f"仅支持 mp4/mkv/flv/mov 视频，当前格式: {suffix}", "data": None}
+    size_mb = round(local.stat().st_size / 1024 / 1024, 1)
+    return {
+        "code": 0, "msg": "ok", "success": True,
+        "data": {"name": local.name, "path": str(local), "size": f"{size_mb} MB"},
+    }
+
+
 class LiveStartRequest(BaseModel):
     room_id: str
     video_file: str
@@ -390,7 +448,7 @@ class LiveStartRequest(BaseModel):
 @router.post("/start")
 async def start_live(req: LiveStartRequest):
     """开播: 调用 B站 API 获取真实 RTMP → 启动 FFmpeg 推流"""
-    room_id = req.room_id
+    room_id = await _resolve_room_id(req.room_id, req.cookies)
     video_file = req.video_file
     rtmp_url = req.rtmp_url
     stream_key = req.stream_key
@@ -401,6 +459,8 @@ async def start_live(req: LiveStartRequest):
     area_v2 = req.area_v2
     if _live_state.is_living:
         return {"code": 400, "msg": "已在直播中，请先停止", "data": None}
+    if not room_id:
+        return {"code": 400, "msg": "未获取到房间号，请先登录或手动输入直播间号", "data": None}
 
     if req.scheduled_start:
         try:
@@ -426,20 +486,28 @@ async def start_live(req: LiveStartRequest):
     bili_rtmp = rtmp_url
     bili_stream_key = stream_key
     if cookies:
-        cookie_dict = {}
-        for part in cookies.split(";"):
-            if "=" in part:
-                k, v = part.strip().split("=", 1)
-                cookie_dict[k.strip()] = v.strip()
+        cookie_dict = _parse_cookie_string(cookies)
+        csrf = csrf or cookie_dict.get("bili_jct", "")
+        csrf_token = csrf_token or csrf
         result = _bili_start_live(room_id, csrf, csrf_token, cookie_dict, area_v2)
         if result.get("code") == 0:
             rtmp_data = result.get("data", {})
             rtmp = rtmp_data.get("rtmp", {})
             bili_rtmp = str(rtmp.get("addr") or rtmp.get("url") or rtmp_url).split("?")[0].rstrip("/")
             bili_stream_key = rtmp.get("code") or rtmp.get("stream") or stream_key
+            _live_state.rtmp_url = bili_rtmp
+            _live_state.stream_key = bili_stream_key
             _append_log(f"B站开播成功，RTMP: {bili_rtmp}/{bili_stream_key}", "info")
         else:
             _append_log(f"B站开播失败: {result.get('msg')}", "error")
+            if not rtmp_url or not stream_key:
+                return {"code": result.get("code", 400), "msg": result.get("msg", "B站开播失败"), "data": None}
+
+    if not bili_rtmp or not bili_stream_key:
+        return {"code": 400, "msg": "缺少推流地址或推流密钥，请先获取推流信息或填写完整配置", "data": None}
+
+    _live_state.rtmp_url = bili_rtmp
+    _live_state.stream_key = bili_stream_key
 
     # 启动 FFmpeg 推流线程
     _live_state.is_living = True
@@ -484,7 +552,7 @@ async def stop_live(req: LiveStopRequest):
     csrf = req.csrf
     csrf_token = req.csrf_token or req.csrf
     cookies = req.cookies
-    room_id = req.room_id
+    room_id = req.room_id or _live_state.room_id
     if not _live_state.is_living and _live_state.ffmpeg_process is None:
         return {"code": 0, "msg": "未在直播", "data": None}
 
@@ -507,17 +575,16 @@ async def stop_live(req: LiveStopRequest):
     _live_state.reset()
 
     # 调用 B站关播 API
-    if cookies and room_id and csrf:
-        cookie_dict = {}
-        for part in cookies.split(";"):
-            if "=" in part:
-                k, v = part.strip().split("=", 1)
-                cookie_dict[k.strip()] = v.strip()
-        result = _bili_stop_live(room_id, csrf, csrf_token, cookie_dict)
-        if result.get("code") == 0:
-            _append_log("B站关播成功", "info")
-        else:
-            _append_log(f"B站关播失败: {result.get('msg')}", "warning")
+    if cookies and room_id:
+        cookie_dict = _parse_cookie_string(cookies)
+        csrf = csrf or cookie_dict.get("bili_jct", "")
+        csrf_token = csrf_token or csrf
+        if csrf:
+            result = _bili_stop_live(room_id, csrf, csrf_token, cookie_dict)
+            if result.get("code") == 0:
+                _append_log("B站关播成功", "info")
+            else:
+                _append_log(f"B站关播失败: {result.get('msg')}", "warning")
 
     return {"code": 0, "msg": "直播已停止", "data": {"status": "stopped"}}
 
@@ -539,17 +606,13 @@ class StreamKeyRequest(BaseModel):
 @router.post("/stream_key")
 async def get_stream_key(req: StreamKeyRequest):
     """从 B站 API 获取真实 RTMP 推流地址和密钥 (复刻 src/bili_live.py get_live_info)"""
-    room_id = req.room_id
+    room_id = await _resolve_room_id(req.room_id, req.cookies)
     cookies = req.cookies
     csrf = req.csrf
     if not room_id or not cookies:
         return {"code": 400, "msg": "缺少 room_id 或 cookies", "data": None}
 
-    cookie_dict = {}
-    for part in cookies.split(";"):
-        if "=" in part:
-            k, v = part.strip().split("=", 1)
-            cookie_dict[k.strip()] = v.strip()
+    cookie_dict = _parse_cookie_string(cookies)
     csrf_val = csrf or cookie_dict.get("bili_jct", "")
 
     # 使用 startLive API 获取推流地址（B站设计如此，startLive 只返回地址不真正开播）

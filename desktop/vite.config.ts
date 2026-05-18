@@ -4,9 +4,11 @@ import electron from 'vite-plugin-electron'
 import electronRenderer from 'vite-plugin-electron-renderer'
 import { resolve } from 'path'
 
-const isElectron = process.env.MODE === 'electron'
+export default defineConfig(({ mode }) => {
+  const isElectron = mode === 'electron'
+  const backendTarget = process.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001'
 
-export default defineConfig({
+  return {
   plugins: [
     vue(),
     ...(isElectron ? [
@@ -35,16 +37,17 @@ export default defineConfig({
     },
   },
   server: {
+    host: '127.0.0.1',
     port: 1420,
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: backendTarget,
         changeOrigin: true,
         secure: false,
       },
       '/ws': {
-        target: 'http://127.0.0.1:8000',
+        target: backendTarget,
         ws: true,
         changeOrigin: true,
       },
@@ -54,4 +57,5 @@ export default defineConfig({
     outDir: 'dist/renderer',
     target: 'esnext',
   },
+}
 })

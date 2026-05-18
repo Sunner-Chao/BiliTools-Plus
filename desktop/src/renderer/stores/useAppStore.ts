@@ -6,6 +6,7 @@ export interface GameConfig {
 }
 
 const STORAGE_KEY = 'bilibili_auth'
+const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001'
 
 function loadFromStorage() {
   try {
@@ -34,7 +35,7 @@ export const useAppStore = defineStore('app', () => {
     { key: 'wutheringwaves', label: '鸣潮', configPath: 'bili_config_wutheringwaves.json' },
   ]
   const currentGame = ref<string>('genshin')
-  const server = ref({ url: 'http://127.0.0.1:8000', connected: false, ntpOffset: 0 })
+  const server = ref({ url: DEFAULT_API_BASE, connected: false, ntpOffset: 0 })
   const isLoggedIn = ref(saved?.isLoggedIn ?? false)
   const username = ref(saved?.username ?? '')
   const uid = ref(saved?.uid ?? '')
@@ -70,6 +71,8 @@ export const useAppStore = defineStore('app', () => {
   function setGame(key: string) { currentGame.value = key }
   function setServerUrl(url: string) { server.value.url = url }
   function setNtpOffset(offset: number) { server.value.ntpOffset = offset }
+  function setServerConnected(connected: boolean) { server.value.connected = connected }
+  function setRoomId(roomId: string) { room_id.value = roomId }
   function setLoggedIn(name: string) { isLoggedIn.value = true; username.value = name }
   interface LoginPayload {
     token: string; username: string; uid?: string; avatar?: string; room_id?: string; cookies?: string; level?: number; bili_jct?: string;
@@ -99,6 +102,6 @@ export const useAppStore = defineStore('app', () => {
 
   return {
     games, currentGame, server, isLoggedIn, username, uid, accessToken, cookies, room_id, avatar, level, bili_jct, globalWsStatus, apiBase,
-    setGame, setServerUrl, setNtpOffset, setLoggedIn, login, logout,
+    setGame, setServerUrl, setNtpOffset, setServerConnected, setRoomId, setLoggedIn, login, logout,
   }
 })

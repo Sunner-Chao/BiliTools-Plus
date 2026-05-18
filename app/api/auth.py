@@ -86,18 +86,33 @@ async def _fetch_user_info(cookies_str: str) -> dict:
             user_info["vip_status"] = data.get("vipStatus", 0)
             user_info["vip_type"] = data.get("vipType", 0)
             user_info["level"] = data.get("level_info", {}).get("current_level", 0)
+            live_room = data.get("live_room") or {}
+            room_id = live_room.get("roomid") or live_room.get("room_id")
+            if room_id:
+                user_info["room_id"] = str(room_id)
 
         # 2. 获取直播间信息（room_id 等）
         uid = user_info.get("uid", "")
-        if uid:
+        if uid and not user_info.get("room_id"):
             live_data = await _fetch(
                 "https://api.live.bilibili.com/xlive/web-ucenter/user/get_user_info",
                 {}, cookies_str
             )
             if live_data.get("code") == 0:
                 live_info = live_data.get("data", {})
-                user_info["room_id"] = str(live_info.get("room_id", ""))
+                user_info["room_id"] = str(live_info.get("room_id") or live_info.get("roomid") or "")
                 user_info["live_room_url"] = live_info.get("live_room_url", "")
+
+        if uid and not user_info.get("room_id"):
+            room_data = await _fetch(
+                "https://api.live.bilibili.com/room/v1/Room/getRoomInfoOld",
+                {"mid": uid}, cookies_str
+            )
+            if room_data.get("code") == 0:
+                room_info = room_data.get("data", {})
+                room_id = room_info.get("roomid") or room_info.get("room_id")
+                if room_id:
+                    user_info["room_id"] = str(room_id)
 
         # 3. 解析 cookies 中的关键字段
         cookies_dict = {}
